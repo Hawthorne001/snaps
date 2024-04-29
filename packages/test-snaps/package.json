@@ -49,7 +49,7 @@
     "@metamask/name-lookup-example-snap": "workspace:^",
     "@metamask/network-example-snap": "1.0.0",
     "@metamask/notification-example-snap": "workspace:^",
-    "@metamask/signature-insights-example-snap": "workspace:^",
+    "@metamask/signature-insights-example-snap": "0.0.0",
     "@metamask/snaps-utils": "0.24.0",
     "@metamask/utils": "^8.3.0",
     "@metamask/wasm-example-snap": "1.0.0",
