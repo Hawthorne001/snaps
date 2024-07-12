@@ -1,9 +1,11 @@
 import type { PermissionConstraint } from '@metamask/permission-controller';
 import type { SnapId } from '@metamask/snaps-sdk';
-import { getErrorMessage } from '@metamask/snaps-sdk';
+import { assert, getErrorMessage } from '@metamask/snaps-sdk';
 import {
+  MAX_FILE_SIZE,
   encodeBase64,
   getValidatedLocalizationFiles,
+  validateAuxiliaryFiles,
   validateFetchedSnap,
 } from '@metamask/snaps-utils';
 import deepEqual from 'fast-deep-equal';
@@ -274,9 +276,16 @@ export async function getSnapFiles(
 export async function fetchSnap(snapId: SnapId, location: SnapLocation) {
   try {
     const manifest = await location.manifest();
+
     const sourceCode = await location.fetch(
       manifest.result.source.location.npm.filePath,
     );
+
+    assert(
+      sourceCode.size < MAX_FILE_SIZE,
+      'Snap source code must be smaller than 64 MB.',
+    );
+
     const { iconPath } = manifest.result.source.location.npm;
     const svgIcon = iconPath ? await location.fetch(iconPath) : undefined;
 
@@ -284,6 +293,8 @@ export async function fetchSnap(snapId: SnapId, location: SnapLocation) {
       location,
       manifest.result.source.files,
     );
+
+    validateAuxiliaryFiles(auxiliaryFiles);
 
     await Promise.all(
       auxiliaryFiles.map(async (file) => {

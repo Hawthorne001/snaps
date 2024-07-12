@@ -1,3 +1,4 @@
+import type { SupportedCurve } from '@metamask/key-tree';
 import { isValidBIP32PathSegment } from '@metamask/key-tree';
 import type { EmptyObject, InitialPermissions } from '@metamask/snaps-sdk';
 import {
@@ -26,7 +27,6 @@ import {
   type,
   union,
   intersection,
-  assign,
 } from 'superstruct';
 
 import { isEqual } from '../array';
@@ -35,7 +35,7 @@ import { SIP_6_MAGIC_VALUE, STATE_ENCRYPTION_MAGIC_VALUE } from '../entropy';
 import { KeyringOriginsStruct, RpcOriginsStruct } from '../json-rpc';
 import { ChainIdStruct } from '../namespace';
 import { SnapIdStruct } from '../snaps';
-import type { InferMatching } from '../structs';
+import { mergeStructs, type InferMatching } from '../structs';
 import { NameStruct, NpmSnapFileNames, uri } from '../types';
 
 // BIP-43 purposes that cannot be used for entropy derivation. These are in the
@@ -107,11 +107,17 @@ export const bip32entropy = <
     return true;
   });
 
+export const CurveStruct: Describe<SupportedCurve> = enums([
+  'ed25519',
+  'secp256k1',
+  'ed25519Bip32',
+]);
+
 // Used outside @metamask/snap-utils
 export const Bip32EntropyStruct = bip32entropy(
   type({
     path: Bip32PathStruct,
-    curve: enums(['ed25519', 'secp256k1']),
+    curve: CurveStruct,
   }),
 );
 
@@ -183,18 +189,18 @@ export const EmptyObjectStruct = object<EmptyObject>({}) as unknown as Struct<
 /* eslint-disable @typescript-eslint/naming-convention */
 export const PermissionsStruct: Describe<InitialPermissions> = type({
   'endowment:cronjob': optional(
-    assign(
+    mergeStructs(
       HandlerCaveatsStruct,
       object({ jobs: CronjobSpecificationArrayStruct }),
     ),
   ),
   'endowment:ethereum-provider': optional(EmptyObjectStruct),
   'endowment:keyring': optional(
-    assign(HandlerCaveatsStruct, KeyringOriginsStruct),
+    mergeStructs(HandlerCaveatsStruct, KeyringOriginsStruct),
   ),
   'endowment:lifecycle-hooks': optional(HandlerCaveatsStruct),
   'endowment:name-lookup': optional(
-    assign(
+    mergeStructs(
       HandlerCaveatsStruct,
       object({
         chains: optional(ChainIdsStruct),
@@ -204,9 +210,11 @@ export const PermissionsStruct: Describe<InitialPermissions> = type({
   ),
   'endowment:network-access': optional(EmptyObjectStruct),
   'endowment:page-home': optional(HandlerCaveatsStruct),
-  'endowment:rpc': optional(assign(HandlerCaveatsStruct, RpcOriginsStruct)),
+  'endowment:rpc': optional(
+    mergeStructs(HandlerCaveatsStruct, RpcOriginsStruct),
+  ),
   'endowment:signature-insight': optional(
-    assign(
+    mergeStructs(
       HandlerCaveatsStruct,
       object({
         allowSignatureOrigin: optional(boolean()),
@@ -214,7 +222,7 @@ export const PermissionsStruct: Describe<InitialPermissions> = type({
     ),
   ),
   'endowment:transaction-insight': optional(
-    assign(
+    mergeStructs(
       HandlerCaveatsStruct,
       object({
         allowTransactionOrigin: optional(boolean()),

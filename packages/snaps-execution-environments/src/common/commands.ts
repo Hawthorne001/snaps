@@ -79,17 +79,19 @@ export function getHandlerArguments(
       return { origin, request };
 
     case HandlerType.OnCronjob:
+      return { request };
+
     case HandlerType.OnInstall:
     case HandlerType.OnUpdate:
-      return { request };
+      return { origin };
 
     case HandlerType.OnHomePage:
       return {};
     case HandlerType.OnUserInput: {
       assertIsOnUserInputRequestArguments(request.params);
 
-      const { id, event } = request.params;
-      return { id, event };
+      const { id, event, context } = request.params;
+      return { id, event, context };
     }
 
     default:

@@ -2,11 +2,16 @@ import { createSnapComponent } from '../component';
 import type { AddressElement } from './Address';
 import type { ImageElement } from './Image';
 import type { TextElement } from './Text';
+import type { ValueElement } from './Value';
 
 /**
  * The children of a {@link Row} component.
  */
-export type RowChildren = AddressElement | ImageElement | TextElement;
+export type RowChildren =
+  | AddressElement
+  | ImageElement
+  | TextElement
+  | ValueElement;
 
 /**
  * The props of the {@link Row} component.
@@ -15,11 +20,13 @@ export type RowChildren = AddressElement | ImageElement | TextElement;
  * @property children - The content of the row. This can be an address, an
  * image, or text.
  * @property variant - The variant of the row.
+ * @property tooltip - An optional tooltip to show for the row.
  */
 export type RowProps = {
   label: string;
   children: RowChildren;
-  variant?: 'default' | 'warning' | 'error';
+  variant?: 'default' | 'warning' | 'critical' | undefined;
+  tooltip?: string | undefined;
 };
 
 const TYPE = 'Row';
@@ -32,9 +39,10 @@ const TYPE = 'Row';
  * @param props.children - The content of the row. This can be an address, an
  * image, or text.
  * @param props.variant - The variant of the row.
+ * @param props.tooltip - An optional tooltip to show for the row.
  * @returns A row element.
  * @example
- * <Row label="From" variant="warning">
+ * <Row label="From" variant="warning" tooltip="This address has been deemed dangerous.">
  *   <Address address="0x1234567890123456789012345678901234567890" />
  * </Row>
  */

@@ -6,6 +6,69 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [6.0.0]
+### Added
+- **BREAKING:** Add `FileInput` component ([#2469](https://github.com/MetaMask/snaps/pull/2469), [#2504](https://github.com/MetaMask/snaps/pull/2504))
+  - `FormSubmitEvent` may now contain values of type `File`.
+- **BREAKING:** Add `Checkbox` component ([#2501](https://github.com/MetaMask/snaps/pull/2501))
+  - `FormSubmitEvent` and `InputChangeEvent` may now contain values of type `boolean`.
+- Add `alignment` prop to `Text` ([#2489](https://github.com/MetaMask/snaps/pull/2489))
+- Add `Tooltip` component ([#2490](https://github.com/MetaMask/snaps/pull/2490))
+- Support additional components inside forms ([#2497](https://github.com/MetaMask/snaps/pull/2497))
+- Support conditional children in most JSX components ([#2506](https://github.com/MetaMask/snaps/pull/2506))
+
+## [5.0.0]
+### Added
+- Allow row tooltips ([#2483](https://github.com/MetaMask/snaps/pull/2483))
+- Support nested children in JSX ([#2482](https://github.com/MetaMask/snaps/pull/2482))
+
+### Changed
+- Update `onNameLookup` response types ([#2484](https://github.com/MetaMask/snaps/pull/2484))
+
+### Removed
+- **BREAKING:** Remove `parseSvg` and `isSvg` internals ([#2475](https://github.com/MetaMask/snaps/pull/2475))
+
+### Fixed
+- Correct Row variant in JSX ([#2486](https://github.com/MetaMask/snaps/pull/2486))
+- Revert requiring at least one child in JSX components ([#2481](https://github.com/MetaMask/snaps/pull/2481), [#2470](https://github.com/MetaMask/snaps/pull/2470))
+- Correct docs for `Input` and `Dropdown` ([#2479](https://github.com/MetaMask/snaps/pull/2479))
+
+## [4.4.2]
+### Fixed
+- Require at least 1 child in JSX components ([#2466](https://github.com/MetaMask/snaps/pull/2466))
+
+## [4.4.1]
+### Fixed
+- Fix invalid `@metamask/snaps-sdk` imports ([#2452](https://github.com/MetaMask/snaps/pull/2452))
+
+## [4.4.0]
+### Added
+- Add origin to lifecycle hooks ([#2441](https://github.com/MetaMask/snaps/pull/2441))
+  - Lifecycle hooks can now use the `origin` parameter to determine the origin
+    of the installation or update.
+
+### Changed
+- Bump `@metamask/providers` from `16.1.0` to `17.0.0` ([#2442](https://github.com/MetaMask/snaps/pull/2442))
+- Bump `@metamask/key-tree` from `9.1.0` to `9.1.1` ([#2431](https://github.com/MetaMask/snaps/pull/2431))
+
+## [4.3.0]
+### Added
+- Add `Value` component ([#2435](https://github.com/MetaMask/snaps/pull/2435))
+- Add `Dropdown` component ([#2420](https://github.com/MetaMask/snaps/pull/2420))
+- Add positioning props to `Box` ([#2422](https://github.com/MetaMask/snaps/pull/2422))
+- Allow `Button` within `Input` ([#2407](https://github.com/MetaMask/snaps/pull/2407))
+- Add `context` field to `snap_createInterface` ([#2413](https://github.com/MetaMask/snaps/pull/2413), [#2427](https://github.com/MetaMask/snaps/pull/2427))
+
+### Fixed
+- Correct validation for children of Box component ([#2423](https://github.com/MetaMask/snaps/pull/2423))
+
+## [4.2.0]
+### Added
+- Add support for BIP-32-Ed25519 / CIP-3 key derivation ([#2408](https://github.com/MetaMask/snaps/pull/2408))
+
+### Fixed
+- Add missing TypeScript declarations for JSX entry points ([#2404](https://github.com/MetaMask/snaps/pull/2404))
+
 ## [4.1.0]
 ### Added
 - Add JSX support for custom UI ([#2258](https://github.com/MetaMask/snaps/pull/2258), [#2379](https://github.com/MetaMask/snaps/pull/2379))
@@ -118,7 +181,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - Initial release of this package.
 
-[Unreleased]: https://github.com/MetaMask/snaps/compare/@metamask/snaps-sdk@4.1.0...HEAD
+[Unreleased]: https://github.com/MetaMask/snaps/compare/@metamask/snaps-sdk@6.0.0...HEAD
+[6.0.0]: https://github.com/MetaMask/snaps/compare/@metamask/snaps-sdk@5.0.0...@metamask/snaps-sdk@6.0.0
+[5.0.0]: https://github.com/MetaMask/snaps/compare/@metamask/snaps-sdk@4.4.2...@metamask/snaps-sdk@5.0.0
+[4.4.2]: https://github.com/MetaMask/snaps/compare/@metamask/snaps-sdk@4.4.1...@metamask/snaps-sdk@4.4.2
+[4.4.1]: https://github.com/MetaMask/snaps/compare/@metamask/snaps-sdk@4.4.0...@metamask/snaps-sdk@4.4.1
+[4.4.0]: https://github.com/MetaMask/snaps/compare/@metamask/snaps-sdk@4.3.0...@metamask/snaps-sdk@4.4.0
+[4.3.0]: https://github.com/MetaMask/snaps/compare/@metamask/snaps-sdk@4.2.0...@metamask/snaps-sdk@4.3.0
+[4.2.0]: https://github.com/MetaMask/snaps/compare/@metamask/snaps-sdk@4.1.0...@metamask/snaps-sdk@4.2.0
 [4.1.0]: https://github.com/MetaMask/snaps/compare/@metamask/snaps-sdk@4.0.1...@metamask/snaps-sdk@4.1.0
 [4.0.1]: https://github.com/MetaMask/snaps/compare/@metamask/snaps-sdk@4.0.0...@metamask/snaps-sdk@4.0.1
 [4.0.0]: https://github.com/MetaMask/snaps/compare/@metamask/snaps-sdk@3.2.0...@metamask/snaps-sdk@4.0.0

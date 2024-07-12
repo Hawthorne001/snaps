@@ -1,24 +1,35 @@
 import type { AbstractExecutionService } from '@metamask/snaps-controllers';
-import type { SnapId, Component } from '@metamask/snaps-sdk';
+import {
+  type ComponentOrElement,
+  ComponentOrElementStruct,
+  type JsonRpcError,
+  type SnapId,
+} from '@metamask/snaps-sdk';
 import type { HandlerType } from '@metamask/snaps-utils';
 import { unwrapError } from '@metamask/snaps-utils';
-import { getSafeJson, hasProperty, isPlainObject } from '@metamask/utils';
+import {
+  assert,
+  getSafeJson,
+  hasProperty,
+  isPlainObject,
+} from '@metamask/utils';
 import { nanoid } from '@reduxjs/toolkit';
+import { is } from 'superstruct';
 
 import type {
   RequestOptions,
   SnapHandlerInterface,
   SnapRequest,
 } from '../types';
+import type { RunSagaFunction, Store } from './simulation';
 import {
   clearNotifications,
-  clickElement,
   getInterface,
+  getInterfaceActions,
   getNotifications,
-  typeInField,
 } from './simulation';
-import type { RunSagaFunction, Store } from './simulation';
 import type { RootControllerMessenger } from './simulation/controllers';
+import { SnapResponseStruct } from './structs';
 
 export type HandleRequestOptions = {
   snapId: SnapId;
@@ -59,6 +70,12 @@ export function handleRequest({
   runSaga,
   request: { id = nanoid(), origin = 'https://metamask.io', ...options },
 }: HandleRequestOptions): SnapRequest {
+  const getInterfaceError = () => {
+    throw new Error(
+      'Unable to get the interface from the Snap: The request to the Snap failed.',
+    );
+  };
+
   const promise = executionService
     .handleRpcRequest(snapId, {
       origin,
@@ -73,20 +90,32 @@ export function handleRequest({
       const notifications = getNotifications(store.getState());
       store.dispatch(clearNotifications());
 
-      const getInterfaceFn = await getInterfaceApi(
-        result,
-        snapId,
-        controllerMessenger,
-      );
+      try {
+        const getInterfaceFn = await getInterfaceApi(
+          result,
+          snapId,
+          controllerMessenger,
+        );
 
-      return {
-        id: String(id),
-        response: {
-          result: getSafeJson(result),
-        },
-        notifications,
-        ...(getInterfaceFn ? { getInterface: getInterfaceFn } : {}),
-      };
+        return {
+          id: String(id),
+          response: {
+            result: getSafeJson(result),
+          },
+          notifications,
+          ...(getInterfaceFn ? { getInterface: getInterfaceFn } : {}),
+        };
+      } catch (error) {
+        const [unwrappedError] = unwrapError(error);
+        return {
+          id: String(id),
+          response: {
+            error: unwrappedError.serialize(),
+          },
+          notifications: [],
+          getInterface: getInterfaceError,
+        };
+      }
     })
     .catch((error) => {
       const [unwrappedError] = unwrapError(error);
@@ -97,16 +126,33 @@ export function handleRequest({
           error: unwrappedError.serialize(),
         },
         notifications: [],
+        getInterface: getInterfaceError,
       };
     }) as unknown as SnapRequest;
 
   promise.getInterface = async () => {
-    return await runSaga(
+    const sagaPromise = runSaga(
       getInterface,
       runSaga,
       snapId,
       controllerMessenger,
     ).toPromise();
+    const result = await Promise.race([promise, sagaPromise]);
+
+    // If the request promise has resolved to an error, we should throw
+    // instead of waiting for an interface that likely will never be displayed
+    if (
+      is(result, SnapResponseStruct) &&
+      hasProperty(result.response, 'error')
+    ) {
+      throw new Error(
+        `Unable to get the interface from the Snap: The returned interface may be invalid. The error message received was: ${
+          (result.response.error as JsonRpcError).message
+        }`,
+      );
+    }
+
+    return await sagaPromise;
   };
 
   return promise;
@@ -130,10 +176,14 @@ export async function getInterfaceFromResult(
   }
 
   if (isPlainObject(result) && hasProperty(result, 'content')) {
+    assert(
+      is(result.content, ComponentOrElementStruct),
+      'The Snap returned an invalid interface.',
+    );
     const id = await controllerMessenger.call(
       'SnapInterfaceController:createInterface',
       snapId,
-      result.content as Component,
+      result.content as ComponentOrElement,
     );
 
     return id;
@@ -143,7 +193,8 @@ export async function getInterfaceFromResult(
 }
 
 /**
- * Get the response content from the SnapInterfaceController and include the interaction methods.
+ * Get the response content from the `SnapInterfaceController` and include the
+ * interaction methods.
  *
  * @param result - The handler result object.
  * @param snapId - The Snap ID.
@@ -169,27 +220,14 @@ export async function getInterfaceApi(
         interfaceId,
       );
 
+      const actions = getInterfaceActions(snapId, controllerMessenger, {
+        id: interfaceId,
+        content,
+      });
+
       return {
         content,
-        clickElement: async (name) => {
-          await clickElement(
-            controllerMessenger,
-            interfaceId,
-            content,
-            snapId,
-            name,
-          );
-        },
-        typeInField: async (name, value) => {
-          await typeInField(
-            controllerMessenger,
-            interfaceId,
-            content,
-            snapId,
-            name,
-            value,
-          );
-        },
+        ...actions,
       };
     };
   }

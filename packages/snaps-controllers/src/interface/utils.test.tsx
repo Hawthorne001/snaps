@@ -1,6 +1,46 @@
-import { Box, Button, Field, Form, Input, Text } from '@metamask/snaps-sdk/jsx';
+import { panel, text } from '@metamask/snaps-sdk';
+import {
+  Box,
+  Button,
+  Dropdown,
+  Option,
+  Field,
+  Form,
+  Input,
+  Text,
+  FileInput,
+  Checkbox,
+} from '@metamask/snaps-sdk/jsx';
 
-import { assertNameIsUnique, constructState } from './utils';
+import { assertNameIsUnique, constructState, getJsxInterface } from './utils';
+
+describe('getJsxInterface', () => {
+  it('returns the JSX interface for a JSX element', () => {
+    expect(
+      getJsxInterface(
+        <Box>
+          <Text>Hello</Text>
+        </Box>,
+      ),
+    ).toStrictEqual(
+      Box({
+        children: Text({
+          children: 'Hello',
+        }),
+      }),
+    );
+  });
+
+  it('returns the JSX interface for a legacy element', () => {
+    expect(getJsxInterface(panel([text('Hello')]))).toStrictEqual(
+      Box({
+        children: Text({
+          children: 'Hello',
+        }),
+      }),
+    );
+  });
+});
 
 describe('assertNameIsUnique', () => {
   it('throws an error if a name is not unique', () => {
@@ -223,6 +263,180 @@ describe('constructState', () => {
     });
   });
 
+  it('sets default value for root level dropdown', () => {
+    const element = (
+      <Box>
+        <Dropdown name="foo">
+          <Option value="option1">Option 1</Option>
+          <Option value="option2">Option 2</Option>
+        </Dropdown>
+      </Box>
+    );
+
+    const result = constructState({}, element);
+    expect(result).toStrictEqual({
+      foo: 'option1',
+    });
+  });
+
+  it('supports root level dropdowns', () => {
+    const element = (
+      <Box>
+        <Dropdown name="foo" value="option2">
+          <Option value="option1">Option 1</Option>
+          <Option value="option2">Option 2</Option>
+        </Dropdown>
+      </Box>
+    );
+
+    const result = constructState({}, element);
+    expect(result).toStrictEqual({
+      foo: 'option2',
+    });
+  });
+
+  it('sets default value for dropdowns in forms', () => {
+    const element = (
+      <Box>
+        <Form name="form">
+          <Field label="foo">
+            <Dropdown name="foo">
+              <Option value="option1">Option 1</Option>
+              <Option value="option2">Option 2</Option>
+            </Dropdown>
+          </Field>
+        </Form>
+      </Box>
+    );
+
+    const result = constructState({}, element);
+    expect(result).toStrictEqual({
+      form: { foo: 'option1' },
+    });
+  });
+
+  it('supports dropdowns in forms', () => {
+    const element = (
+      <Box>
+        <Form name="form">
+          <Field label="foo">
+            <Dropdown name="foo" value="option2">
+              <Option value="option1">Option 1</Option>
+              <Option value="option2">Option 2</Option>
+            </Dropdown>
+          </Field>
+        </Form>
+      </Box>
+    );
+
+    const result = constructState({}, element);
+    expect(result).toStrictEqual({
+      form: { foo: 'option2' },
+    });
+  });
+
+  it('supports root level checkboxes in forms', () => {
+    const element = (
+      <Box>
+        <Checkbox name="foo" checked={true} />
+      </Box>
+    );
+
+    const result = constructState({}, element);
+    expect(result).toStrictEqual({
+      foo: true,
+    });
+  });
+
+  it('sets default value for checkbox in forms', () => {
+    const element = (
+      <Box>
+        <Form name="form">
+          <Field label="foo">
+            <Checkbox name="foo" />
+          </Field>
+        </Form>
+      </Box>
+    );
+
+    const result = constructState({}, element);
+    expect(result).toStrictEqual({
+      form: { foo: false },
+    });
+  });
+
+  it('supports checkboxes in forms', () => {
+    const element = (
+      <Box>
+        <Form name="form">
+          <Field label="foo">
+            <Checkbox name="foo" checked={true} />
+          </Field>
+        </Form>
+      </Box>
+    );
+
+    const result = constructState({}, element);
+    expect(result).toStrictEqual({
+      form: { foo: true },
+    });
+  });
+
+  it('supports nested fields', () => {
+    const element = (
+      <Box>
+        <Form name="form">
+          <Text>Foo</Text>
+          <Box>
+            <Field label="bar">
+              <Dropdown name="bar" value="option2">
+                <Option value="option1">Option 1</Option>
+                <Option value="option2">Option 2</Option>
+              </Dropdown>
+            </Field>
+          </Box>
+        </Form>
+      </Box>
+    );
+
+    const result = constructState({}, element);
+    expect(result).toStrictEqual({
+      form: { bar: 'option2' },
+    });
+  });
+
+  it('supports nested forms by tying fields to nearest form', () => {
+    const element = (
+      <Box>
+        <Form name="form">
+          <Text>Foo</Text>
+          <Box>
+            <Form name="form2">
+              <Field label="bar">
+                <Dropdown name="bar" value="option2">
+                  <Option value="option1">Option 1</Option>
+                  <Option value="option2">Option 2</Option>
+                </Dropdown>
+              </Field>
+            </Form>
+            <Field label="baz">
+              <Dropdown name="baz" value="option4">
+                <Option value="option3">Option 3</Option>
+                <Option value="option4">Option 4</Option>
+              </Dropdown>
+            </Field>
+          </Box>
+        </Form>
+      </Box>
+    );
+
+    const result = constructState({}, element);
+    expect(result).toStrictEqual({
+      form: { baz: 'option4' },
+      form2: { bar: 'option2' },
+    });
+  });
+
   it('deletes unused root level values', () => {
     const element = (
       <Box>
@@ -250,6 +464,19 @@ describe('constructState', () => {
     const result = constructState(state, element);
     expect(result).toStrictEqual({
       foo: 'bar',
+    });
+  });
+
+  it('supports file inputs', () => {
+    const element = (
+      <Box>
+        <FileInput name="foo" />
+      </Box>
+    );
+
+    const result = constructState({}, element);
+    expect(result).toStrictEqual({
+      foo: null,
     });
   });
 

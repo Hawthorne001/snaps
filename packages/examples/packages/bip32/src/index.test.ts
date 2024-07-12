@@ -1,7 +1,6 @@
 import { expect } from '@jest/globals';
-import { installSnap } from '@metamask/snaps-jest';
+import { assertIsConfirmationDialog, installSnap } from '@metamask/snaps-jest';
 import { copyable, heading, panel, text } from '@metamask/snaps-sdk';
-import { assert } from '@metamask/utils';
 
 describe('onRpcRequest', () => {
   it('throws an error if the requested method does not exist', async () => {
@@ -109,6 +108,7 @@ describe('onRpcRequest', () => {
       });
 
       const ui = await response.getInterface();
+      assertIsConfirmationDialog(ui);
       expect(ui).toRender(
         panel([
           heading('Signature request'),
@@ -141,6 +141,7 @@ describe('onRpcRequest', () => {
       });
 
       const ui = await response.getInterface();
+      assertIsConfirmationDialog(ui);
       expect(ui).toRender(
         panel([
           heading('Signature request'),
@@ -160,6 +161,39 @@ describe('onRpcRequest', () => {
       );
     });
 
+    it('signs a message for the given BIP-32 path using ed25519Bip32', async () => {
+      const { request } = await installSnap();
+
+      const response = request({
+        method: 'signMessage',
+        params: {
+          path: ['m', "44'", "0'"],
+          curve: 'ed25519Bip32',
+          message: 'Hello, world!',
+        },
+      });
+
+      const ui = await response.getInterface();
+      assertIsConfirmationDialog(ui);
+      expect(ui).toRender(
+        panel([
+          heading('Signature request'),
+          text(
+            `Do you want to ed25519Bip32 sign "Hello, world!" with the following public key?`,
+          ),
+          copyable(
+            '0x2c3ac523b470dead7981df46c93d894ed4381e94c23aa1ec3806a320ff8ceb42',
+          ),
+        ]),
+      );
+
+      await ui.ok();
+
+      expect(await response).toRespondWith(
+        '0x5c01bf4c314a74d3feb27b261637837740e167cf3261fe0bc89dcdbf97888276be030a84298087c031141c1093647768de5b35c1154ec485cb08373a72574902',
+      );
+    });
+
     it('throws an error when rejecting the signature request', async () => {
       const { request } = await installSnap();
 
@@ -173,7 +207,7 @@ describe('onRpcRequest', () => {
       });
 
       const ui = await response.getInterface();
-      assert(ui.type === 'confirmation');
+      assertIsConfirmationDialog(ui);
       await ui.cancel();
 
       expect(await response).toRespondWithError({

@@ -1,4 +1,5 @@
 import { SnapInterfaceController } from '@metamask/snaps-controllers';
+import { DIALOG_APPROVAL_TYPES } from '@metamask/snaps-rpc-methods';
 import {
   ButtonType,
   DialogType,
@@ -9,17 +10,37 @@ import {
   panel,
   text,
 } from '@metamask/snaps-sdk';
-import { Button, Text } from '@metamask/snaps-sdk/jsx';
+import {
+  Button,
+  Text,
+  Dropdown,
+  Option,
+  Box,
+  Input,
+  FileInput,
+  Checkbox,
+  Form,
+  Container,
+  Footer,
+} from '@metamask/snaps-sdk/jsx';
 import {
   getJsxElementFromComponent,
   HandlerType,
   WrappedSnapError,
 } from '@metamask/snaps-utils';
 import { MOCK_SNAP_ID } from '@metamask/snaps-utils/test-utils';
-import { assert } from '@metamask/utils';
 import type { SagaIterator } from 'redux-saga';
 import { take } from 'redux-saga/effects';
 
+import {
+  assertIsAlertDialog,
+  assertIsConfirmationDialog,
+  assertIsCustomDialog,
+  assertIsPromptDialog,
+  assertCustomDialogHasFooter,
+  assertCustomDialogHasPartialFooter,
+  assertCustomDialogHasNoFooter,
+} from '../../helpers';
 import {
   getMockOptions,
   getRestrictedSnapInterfaceControllerMessenger,
@@ -31,7 +52,10 @@ import {
   getInterface,
   getInterfaceResponse,
   mergeValue,
+  resolveWithSaga,
+  selectInDropdown,
   typeInField,
+  uploadFile,
 } from './interface';
 import type { RunSagaFunction } from './store';
 import { createStore, resolveInterface, setInterface } from './store';
@@ -51,22 +75,30 @@ async function getResolve(runSaga: RunSagaFunction) {
 }
 
 describe('getInterfaceResponse', () => {
-  const interfaceActions = { clickElement: jest.fn(), typeInField: jest.fn() };
+  const interfaceActions = {
+    clickElement: jest.fn(),
+    typeInField: jest.fn(),
+    selectInDropdown: jest.fn(),
+    uploadFile: jest.fn(),
+  };
 
   it('returns an `ok` function that resolves the user interface with `null` for alert dialogs', async () => {
     const { runSaga } = createStore(getMockOptions());
     const response = getInterfaceResponse(
       runSaga,
-      DialogType.Alert,
+      DIALOG_APPROVAL_TYPES[DialogType.Alert],
       <Text>foo</Text>,
       interfaceActions,
     );
+    assertIsAlertDialog(response);
 
     expect(response).toStrictEqual({
       type: DialogType.Alert,
       content: <Text>foo</Text>,
       clickElement: expect.any(Function),
       typeInField: expect.any(Function),
+      selectInDropdown: expect.any(Function),
+      uploadFile: expect.any(Function),
       ok: expect.any(Function),
     });
 
@@ -79,16 +111,19 @@ describe('getInterfaceResponse', () => {
     const { runSaga } = createStore(getMockOptions());
     const response = getInterfaceResponse(
       runSaga,
-      DialogType.Confirmation,
+      DIALOG_APPROVAL_TYPES[DialogType.Confirmation],
       <Text>foo</Text>,
       interfaceActions,
     );
 
+    assertIsConfirmationDialog(response);
     expect(response).toStrictEqual({
       type: DialogType.Confirmation,
       content: <Text>foo</Text>,
       clickElement: expect.any(Function),
       typeInField: expect.any(Function),
+      selectInDropdown: expect.any(Function),
+      uploadFile: expect.any(Function),
       ok: expect.any(Function),
       cancel: expect.any(Function),
     });
@@ -102,17 +137,19 @@ describe('getInterfaceResponse', () => {
     const { runSaga } = createStore(getMockOptions());
     const response = getInterfaceResponse(
       runSaga,
-      DialogType.Confirmation,
+      DIALOG_APPROVAL_TYPES[DialogType.Confirmation],
       <Text>foo</Text>,
       interfaceActions,
     );
 
-    assert(response.type === DialogType.Confirmation);
+    assertIsConfirmationDialog(response);
     expect(response).toStrictEqual({
       type: DialogType.Confirmation,
       content: <Text>foo</Text>,
       clickElement: expect.any(Function),
       typeInField: expect.any(Function),
+      selectInDropdown: expect.any(Function),
+      uploadFile: expect.any(Function),
       ok: expect.any(Function),
       cancel: expect.any(Function),
     });
@@ -126,16 +163,19 @@ describe('getInterfaceResponse', () => {
     const { runSaga } = createStore(getMockOptions());
     const response = getInterfaceResponse(
       runSaga,
-      DialogType.Prompt,
+      DIALOG_APPROVAL_TYPES[DialogType.Prompt],
       <Text>foo</Text>,
       interfaceActions,
     );
 
+    assertIsPromptDialog(response);
     expect(response).toStrictEqual({
       type: DialogType.Prompt,
       content: <Text>foo</Text>,
       clickElement: expect.any(Function),
       typeInField: expect.any(Function),
+      selectInDropdown: expect.any(Function),
+      uploadFile: expect.any(Function),
       ok: expect.any(Function),
       cancel: expect.any(Function),
     });
@@ -149,16 +189,19 @@ describe('getInterfaceResponse', () => {
     const { runSaga } = createStore(getMockOptions());
     const response = getInterfaceResponse(
       runSaga,
-      DialogType.Prompt,
+      DIALOG_APPROVAL_TYPES[DialogType.Prompt],
       <Text>foo</Text>,
       interfaceActions,
     );
 
+    assertIsPromptDialog(response);
     expect(response).toStrictEqual({
       type: DialogType.Prompt,
       content: <Text>foo</Text>,
       clickElement: expect.any(Function),
       typeInField: expect.any(Function),
+      selectInDropdown: expect.any(Function),
+      uploadFile: expect.any(Function),
       ok: expect.any(Function),
       cancel: expect.any(Function),
     });
@@ -172,17 +215,19 @@ describe('getInterfaceResponse', () => {
     const { runSaga } = createStore(getMockOptions());
     const response = getInterfaceResponse(
       runSaga,
-      DialogType.Prompt,
+      DIALOG_APPROVAL_TYPES[DialogType.Prompt],
       <Text>foo</Text>,
       interfaceActions,
     );
 
-    assert(response.type === DialogType.Prompt);
+    assertIsPromptDialog(response);
     expect(response).toStrictEqual({
       type: DialogType.Prompt,
       content: <Text>foo</Text>,
       clickElement: expect.any(Function),
       typeInField: expect.any(Function),
+      selectInDropdown: expect.any(Function),
+      uploadFile: expect.any(Function),
       ok: expect.any(Function),
       cancel: expect.any(Function),
     });
@@ -192,6 +237,116 @@ describe('getInterfaceResponse', () => {
     expect(await promise).toBeNull();
   });
 
+  it('returns no `ok` or `cancel` functions for custom dialogs with a complete footer', () => {
+    const { runSaga } = createStore(getMockOptions());
+    const response = getInterfaceResponse(
+      runSaga,
+      DIALOG_APPROVAL_TYPES.default,
+      <Container>
+        <Box>
+          <Text>foo</Text>
+        </Box>
+        <Footer>
+          <Button name="cancel">Cancel</Button>
+          <Button name="confirm">Confirm</Button>
+        </Footer>
+      </Container>,
+      interfaceActions,
+    );
+
+    assertIsCustomDialog(response);
+    assertCustomDialogHasFooter(response);
+
+    expect(response).toStrictEqual({
+      content: (
+        <Container>
+          <Box>
+            <Text>foo</Text>
+          </Box>
+          <Footer>
+            <Button name="cancel">Cancel</Button>
+            <Button name="confirm">Confirm</Button>
+          </Footer>
+        </Container>
+      ),
+      clickElement: expect.any(Function),
+      typeInField: expect.any(Function),
+      selectInDropdown: expect.any(Function),
+      uploadFile: expect.any(Function),
+    });
+  });
+
+  it('returns a `cancel` functions for custom dialogs with a partial footer', () => {
+    const { runSaga } = createStore(getMockOptions());
+    const response = getInterfaceResponse(
+      runSaga,
+      DIALOG_APPROVAL_TYPES.default,
+      <Container>
+        <Box>
+          <Text>foo</Text>
+        </Box>
+        <Footer>
+          <Button name="confirm">Confirm</Button>
+        </Footer>
+      </Container>,
+      interfaceActions,
+    );
+
+    assertIsCustomDialog(response);
+    assertCustomDialogHasPartialFooter(response);
+
+    expect(response).toStrictEqual({
+      content: (
+        <Container>
+          <Box>
+            <Text>foo</Text>
+          </Box>
+          <Footer>
+            <Button name="confirm">Confirm</Button>
+          </Footer>
+        </Container>
+      ),
+      clickElement: expect.any(Function),
+      typeInField: expect.any(Function),
+      selectInDropdown: expect.any(Function),
+      uploadFile: expect.any(Function),
+      cancel: expect.any(Function),
+    });
+  });
+
+  it('returns a `ok` and `cancel` functions for custom dialogs without a footer', () => {
+    const { runSaga } = createStore(getMockOptions());
+    const response = getInterfaceResponse(
+      runSaga,
+      DIALOG_APPROVAL_TYPES.default,
+      <Container>
+        <Box>
+          <Text>foo</Text>
+        </Box>
+      </Container>,
+      interfaceActions,
+    );
+
+    assertIsCustomDialog(response);
+    assertCustomDialogHasNoFooter(response);
+
+    expect(response).toStrictEqual({
+      content: (
+        <Container>
+          <Box>
+            <Text>foo</Text>
+          </Box>
+        </Container>
+      ),
+      clickElement: expect.any(Function),
+      typeInField: expect.any(Function),
+      selectInDropdown: expect.any(Function),
+      uploadFile: expect.any(Function),
+      cancel: expect.any(Function),
+      ok: expect.any(Function),
+    });
+  });
+
   it('throws an error for unknown dialog types', () => {
     const { runSaga } = createStore(getMockOptions());
 
@@ -199,6 +354,27 @@ describe('getInterfaceResponse', () => {
       // @ts-expect-error - Invalid dialog type.
       getInterfaceResponse(runSaga, 'Foo', <Text>foo</Text>);
     }).toThrow('Unknown or unsupported dialog type: "Foo".');
+  });
+});
+
+describe('resolveWithSaga', () => {
+  it('resolves the user interface', async () => {
+    const { runSaga, store } = createStore(
+      getMockOptions({
+        state: {
+          ui: {
+            current: {
+              type: DIALOG_APPROVAL_TYPES.default,
+              id: 'foo',
+            },
+          },
+        },
+      }),
+    );
+
+    await runSaga(resolveWithSaga, 'hello').toPromise();
+
+    expect(store.getState().ui.current).toBeNull();
   });
 });
 
@@ -289,6 +465,7 @@ describe('clickElement', () => {
             name: 'bar',
           },
           id: interfaceId,
+          context: null,
         },
       },
     });
@@ -325,6 +502,7 @@ describe('clickElement', () => {
             name: 'baz',
           },
           id: interfaceId,
+          context: null,
         },
       },
     });
@@ -344,6 +522,77 @@ describe('clickElement', () => {
             },
           },
           id: interfaceId,
+          context: null,
+        },
+      },
+    });
+  });
+
+  it('supports checkboxes', async () => {
+    const content = (
+      <Form name="form">
+        <Checkbox name="checkbox" />
+        <Button name="button" type="submit">
+          Submit
+        </Button>
+      </Form>
+    );
+
+    const interfaceId = await interfaceController.createInterface(
+      MOCK_SNAP_ID,
+      content,
+    );
+
+    await clickElement(
+      rootControllerMessenger,
+      interfaceId,
+      content,
+      MOCK_SNAP_ID,
+      'checkbox',
+    );
+
+    await clickElement(
+      rootControllerMessenger,
+      interfaceId,
+      content,
+      MOCK_SNAP_ID,
+      'button',
+    );
+
+    expect(handleRpcRequestMock).toHaveBeenCalledWith(MOCK_SNAP_ID, {
+      origin: '',
+      handler: HandlerType.OnUserInput,
+      request: {
+        jsonrpc: '2.0',
+        method: ' ',
+        params: {
+          event: {
+            type: UserInputEventType.InputChangeEvent,
+            name: 'checkbox',
+            value: true,
+          },
+          id: interfaceId,
+          context: null,
+        },
+      },
+    });
+
+    expect(handleRpcRequestMock).toHaveBeenCalledWith(MOCK_SNAP_ID, {
+      origin: '',
+      handler: HandlerType.OnUserInput,
+      request: {
+        jsonrpc: '2.0',
+        method: ' ',
+        params: {
+          event: {
+            type: UserInputEventType.FormSubmitEvent,
+            name: 'form',
+            value: {
+              checkbox: true,
+            },
+          },
+          id: interfaceId,
+          context: null,
         },
       },
     });
@@ -389,7 +638,7 @@ describe('clickElement', () => {
         'foo',
       ),
     ).rejects.toThrow(
-      'Expected an element of type "Button", but found "Input".',
+      'Expected an element of type "Button" or "Checkbox", but found "Input".',
     );
 
     expect(handleRpcRequestMock).not.toHaveBeenCalled();
@@ -493,6 +742,7 @@ describe('typeInField', () => {
             value: 'baz',
           },
           id: interfaceId,
+          context: null,
         },
       },
     });
@@ -543,6 +793,311 @@ describe('typeInField', () => {
   });
 });
 
+describe('selectInDropdown', () => {
+  const rootControllerMessenger = getRootControllerMessenger();
+  const controllerMessenger = getRestrictedSnapInterfaceControllerMessenger(
+    rootControllerMessenger,
+  );
+
+  const interfaceController = new SnapInterfaceController({
+    messenger: controllerMessenger,
+  });
+
+  const handleRpcRequestMock = jest.fn();
+
+  rootControllerMessenger.registerActionHandler(
+    'ExecutionService:handleRpcRequest',
+    handleRpcRequestMock,
+  );
+
+  it('updates the interface state and sends an InputChangeEvent', async () => {
+    jest.spyOn(rootControllerMessenger, 'call');
+
+    const content = (
+      <Dropdown name="foo">
+        <Option value="option1">Option 1</Option>
+        <Option value="option2">Option 2</Option>
+      </Dropdown>
+    );
+
+    const interfaceId = await interfaceController.createInterface(
+      MOCK_SNAP_ID,
+      content,
+    );
+
+    await selectInDropdown(
+      rootControllerMessenger,
+      interfaceId,
+      content,
+      MOCK_SNAP_ID,
+      'foo',
+      'option2',
+    );
+
+    expect(rootControllerMessenger.call).toHaveBeenCalledWith(
+      'SnapInterfaceController:updateInterfaceState',
+      interfaceId,
+      { foo: 'option2' },
+    );
+
+    expect(handleRpcRequestMock).toHaveBeenCalledWith(MOCK_SNAP_ID, {
+      origin: '',
+      handler: HandlerType.OnUserInput,
+      request: {
+        jsonrpc: '2.0',
+        method: ' ',
+        params: {
+          event: {
+            type: UserInputEventType.InputChangeEvent,
+            name: 'foo',
+            value: 'option2',
+          },
+          id: interfaceId,
+          context: null,
+        },
+      },
+    });
+  });
+
+  it('throws if selected option does not exist', async () => {
+    const content = (
+      <Dropdown name="foo">
+        <Option value="option1">Option 1</Option>
+        <Option value="option2">Option 2</Option>
+      </Dropdown>
+    );
+
+    const interfaceId = await interfaceController.createInterface(
+      MOCK_SNAP_ID,
+      content,
+    );
+
+    await expect(
+      selectInDropdown(
+        rootControllerMessenger,
+        interfaceId,
+        content,
+        MOCK_SNAP_ID,
+        'foo',
+        'option3',
+      ),
+    ).rejects.toThrow(
+      'The dropdown with the name "foo" does not contain "option3"',
+    );
+  });
+
+  it('throws if there is no dropdowns in the interface', async () => {
+    const content = (
+      <Box>
+        <Text>Foo</Text>
+      </Box>
+    );
+
+    const interfaceId = await interfaceController.createInterface(
+      MOCK_SNAP_ID,
+      content,
+    );
+
+    await expect(
+      selectInDropdown(
+        rootControllerMessenger,
+        interfaceId,
+        content,
+        MOCK_SNAP_ID,
+        'bar',
+        'baz',
+      ),
+    ).rejects.toThrow(
+      'Could not find an element in the interface with the name "bar".',
+    );
+  });
+
+  it('throws if the element is not a dropdown', async () => {
+    const content = <Input name="foo" />;
+
+    const interfaceId = await interfaceController.createInterface(
+      MOCK_SNAP_ID,
+      content,
+    );
+
+    await expect(
+      selectInDropdown(
+        rootControllerMessenger,
+        interfaceId,
+        content,
+        MOCK_SNAP_ID,
+        'foo',
+        'baz',
+      ),
+    ).rejects.toThrow(
+      'Expected an element of type "Dropdown", but found "Input".',
+    );
+  });
+});
+
+describe('uploadFile', () => {
+  it('uploads a file and sends an `FileUploadEvent` to the Snap', async () => {
+    const rootControllerMessenger = getRootControllerMessenger();
+    const controllerMessenger = getRestrictedSnapInterfaceControllerMessenger(
+      rootControllerMessenger,
+    );
+
+    const interfaceController = new SnapInterfaceController({
+      messenger: controllerMessenger,
+    });
+
+    const handleRpcRequestMock = jest.fn();
+
+    rootControllerMessenger.registerActionHandler(
+      'ExecutionService:handleRpcRequest',
+      handleRpcRequestMock,
+    );
+
+    const content = (
+      <Box>
+        <FileInput name="foo" />
+      </Box>
+    );
+
+    const interfaceId = await interfaceController.createInterface(
+      MOCK_SNAP_ID,
+      content,
+    );
+
+    await uploadFile(
+      rootControllerMessenger,
+      interfaceId,
+      content,
+      MOCK_SNAP_ID,
+      'foo',
+      new Uint8Array([1, 2, 3]),
+    );
+
+    expect(handleRpcRequestMock).toHaveBeenCalledWith(MOCK_SNAP_ID, {
+      origin: '',
+      handler: HandlerType.OnUserInput,
+      request: {
+        jsonrpc: '2.0',
+        method: ' ',
+        params: {
+          event: {
+            type: UserInputEventType.FileUploadEvent,
+            name: 'foo',
+            file: {
+              name: '',
+              size: 3,
+              contentType: 'application/octet-stream',
+              contents: 'AQID',
+            },
+          },
+          id: interfaceId,
+          context: null,
+        },
+      },
+    });
+  });
+
+  it('uploads a file with a custom file name and MIME type', async () => {
+    const rootControllerMessenger = getRootControllerMessenger();
+    const controllerMessenger = getRestrictedSnapInterfaceControllerMessenger(
+      rootControllerMessenger,
+    );
+
+    const interfaceController = new SnapInterfaceController({
+      messenger: controllerMessenger,
+    });
+
+    const handleRpcRequestMock = jest.fn();
+
+    rootControllerMessenger.registerActionHandler(
+      'ExecutionService:handleRpcRequest',
+      handleRpcRequestMock,
+    );
+
+    const content = (
+      <Box>
+        <FileInput name="foo" />
+      </Box>
+    );
+
+    const interfaceId = await interfaceController.createInterface(
+      MOCK_SNAP_ID,
+      content,
+    );
+
+    await uploadFile(
+      rootControllerMessenger,
+      interfaceId,
+      content,
+      MOCK_SNAP_ID,
+      'foo',
+      new Uint8Array([1, 2, 3]),
+      {
+        fileName: 'bar',
+        contentType: 'text/plain',
+      },
+    );
+
+    expect(handleRpcRequestMock).toHaveBeenCalledWith(MOCK_SNAP_ID, {
+      origin: '',
+      handler: HandlerType.OnUserInput,
+      request: {
+        jsonrpc: '2.0',
+        method: ' ',
+        params: {
+          event: {
+            type: UserInputEventType.FileUploadEvent,
+            name: 'foo',
+            file: {
+              name: 'bar',
+              size: 3,
+              contentType: 'text/plain',
+              contents: 'AQID',
+            },
+          },
+          id: interfaceId,
+          context: null,
+        },
+      },
+    });
+  });
+
+  it('throws an error if the file size exceeds the maximum allowed size', async () => {
+    const rootControllerMessenger = getRootControllerMessenger();
+    const controllerMessenger = getRestrictedSnapInterfaceControllerMessenger(
+      rootControllerMessenger,
+    );
+
+    const interfaceController = new SnapInterfaceController({
+      messenger: controllerMessenger,
+    });
+
+    const content = (
+      <Box>
+        <FileInput name="foo" />
+      </Box>
+    );
+
+    const interfaceId = await interfaceController.createInterface(
+      MOCK_SNAP_ID,
+      content,
+    );
+
+    await expect(
+      uploadFile(
+        rootControllerMessenger,
+        interfaceId,
+        content,
+        MOCK_SNAP_ID,
+        'foo',
+        new Uint8Array(11_000_000),
+      ),
+    ).rejects.toThrow(
+      'The file size (11.00 MB) exceeds the maximum allowed size of 10.00 MB.',
+    );
+  });
+});
+
 describe('getInterface', () => {
   const rootControllerMessenger = getRootControllerMessenger();
   const controllerMessenger = getRestrictedSnapInterfaceControllerMessenger(
@@ -558,7 +1113,7 @@ describe('getInterface', () => {
     const content = text('foo');
     const id = await interfaceController.createInterface(MOCK_SNAP_ID, content);
     const type = DialogType.Alert;
-    const ui = { type, id };
+    const ui = { type: DIALOG_APPROVAL_TYPES[type], id };
 
     store.dispatch(setInterface(ui));
 
@@ -573,6 +1128,8 @@ describe('getInterface', () => {
       content: getJsxElementFromComponent(content),
       clickElement: expect.any(Function),
       typeInField: expect.any(Function),
+      selectInDropdown: expect.any(Function),
+      uploadFile: expect.any(Function),
       ok: expect.any(Function),
     });
   });
@@ -590,7 +1147,7 @@ describe('getInterface', () => {
     const content = text('foo');
     const id = await interfaceController.createInterface(MOCK_SNAP_ID, content);
     const type = DialogType.Alert;
-    const ui = { type, id };
+    const ui = { type: DIALOG_APPROVAL_TYPES[type], id };
     store.dispatch(setInterface(ui));
 
     const result = await promise;
@@ -599,6 +1156,8 @@ describe('getInterface', () => {
       content: getJsxElementFromComponent(content),
       clickElement: expect.any(Function),
       typeInField: expect.any(Function),
+      selectInDropdown: expect.any(Function),
+      uploadFile: expect.any(Function),
       ok: expect.any(Function),
     });
   });
@@ -610,7 +1169,7 @@ describe('getInterface', () => {
     const content = button({ value: 'foo', name: 'foo' });
     const id = await interfaceController.createInterface(MOCK_SNAP_ID, content);
     const type = DialogType.Alert;
-    const ui = { type, id };
+    const ui = { type: DIALOG_APPROVAL_TYPES[type], id };
 
     store.dispatch(setInterface(ui));
 
@@ -638,6 +1197,7 @@ describe('getInterface', () => {
               name: 'foo',
             },
             id,
+            context: null,
           },
         },
       },
@@ -651,7 +1211,7 @@ describe('getInterface', () => {
     const content = input('foo');
     const id = await interfaceController.createInterface(MOCK_SNAP_ID, content);
     const type = DialogType.Alert;
-    const ui = { type, id };
+    const ui = { type: DIALOG_APPROVAL_TYPES[type], id };
 
     store.dispatch(setInterface(ui));
 
@@ -680,6 +1240,107 @@ describe('getInterface', () => {
               value: 'bar',
             },
             id,
+            context: null,
+          },
+        },
+      },
+    );
+  });
+
+  it('sends a request to the snap when `selectInDropdown` is called', async () => {
+    jest.spyOn(rootControllerMessenger, 'call');
+    const { store, runSaga } = createStore(getMockOptions());
+
+    const content = (
+      <Dropdown name="foo">
+        <Option value="option1">Option 1</Option>
+        <Option value="option2">Option 2</Option>
+      </Dropdown>
+    );
+    const id = await interfaceController.createInterface(MOCK_SNAP_ID, content);
+    const type = DialogType.Alert;
+    const ui = { type: DIALOG_APPROVAL_TYPES[type], id };
+
+    store.dispatch(setInterface(ui));
+
+    const result = await runSaga(
+      getInterface,
+      runSaga,
+      MOCK_SNAP_ID,
+      rootControllerMessenger,
+    ).toPromise();
+
+    await result.selectInDropdown('foo', 'option2');
+
+    expect(rootControllerMessenger.call).toHaveBeenCalledWith(
+      'ExecutionService:handleRpcRequest',
+      MOCK_SNAP_ID,
+      {
+        origin: '',
+        handler: HandlerType.OnUserInput,
+        request: {
+          jsonrpc: '2.0',
+          method: ' ',
+          params: {
+            event: {
+              type: UserInputEventType.InputChangeEvent,
+              name: 'foo',
+              value: 'option2',
+            },
+            id,
+            context: null,
+          },
+        },
+      },
+    );
+  });
+
+  it('sends a request to the snap when `uploadFile` is called', async () => {
+    jest.spyOn(rootControllerMessenger, 'call');
+    const { store, runSaga } = createStore(getMockOptions());
+
+    const content = (
+      <Box>
+        <FileInput name="foo" />
+      </Box>
+    );
+    const id = await interfaceController.createInterface(MOCK_SNAP_ID, content);
+    const type = DialogType.Alert;
+    const ui = { type: DIALOG_APPROVAL_TYPES[type], id };
+
+    store.dispatch(setInterface(ui));
+
+    const result = await runSaga(
+      getInterface,
+      runSaga,
+      MOCK_SNAP_ID,
+      rootControllerMessenger,
+    ).toPromise();
+
+    await result.uploadFile('foo', new Uint8Array([1, 2, 3]));
+
+    expect(rootControllerMessenger.call).toHaveBeenCalledWith(
+      'ExecutionService:handleRpcRequest',
+      MOCK_SNAP_ID,
+      {
+        origin: '',
+        handler: HandlerType.OnUserInput,
+        request: {
+          jsonrpc: '2.0',
+          method: ' ',
+          params: {
+            event: {
+              type: UserInputEventType.FileUploadEvent,
+              name: 'foo',
+              file: {
+                name: '',
+                size: 3,
+                contentType: 'application/octet-stream',
+                contents: 'AQID',
+              },
+            },
+            id,
+            context: null,
           },
         },
       },

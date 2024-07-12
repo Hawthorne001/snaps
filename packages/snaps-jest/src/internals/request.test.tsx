@@ -1,6 +1,7 @@
 import { SnapInterfaceController } from '@metamask/snaps-controllers';
 import type { SnapId } from '@metamask/snaps-sdk';
 import { UserInputEventType, button, input, text } from '@metamask/snaps-sdk';
+import { Dropdown, Option } from '@metamask/snaps-sdk/jsx';
 import { getJsxElementFromComponent, HandlerType } from '@metamask/snaps-utils';
 import { MOCK_SNAP_ID } from '@metamask/snaps-utils/test-utils';
 
@@ -9,6 +10,7 @@ import {
   getRestrictedSnapInterfaceControllerMessenger,
   getRootControllerMessenger,
 } from '../test-utils';
+import type { SnapResponseWithInterface } from '../types';
 import {
   getInterfaceApi,
   getInterfaceFromResult,
@@ -96,6 +98,80 @@ describe('handleRequest', () => {
     await snap.executionService.terminateAllSnaps();
   });
 
+  it('gracefully handles returned invalid UI', async () => {
+    const controllerMessenger = getRootControllerMessenger();
+
+    const { snapId, close: closeServer } = await getMockServer({
+      sourceCode: `
+        module.exports.onHomePage = async (request) => {
+          return ({ content: 'foo' });
+        };
+      `,
+      port: 4242,
+    });
+
+    const snap = await handleInstallSnap(snapId);
+    const response = await handleRequest({
+      ...snap,
+      controllerMessenger,
+      handler: HandlerType.OnHomePage,
+      request: {
+        method: '',
+      },
+    });
+
+    expect(response).toStrictEqual({
+      id: expect.any(String),
+      response: {
+        error: expect.objectContaining({
+          code: -32603,
+          message: 'The Snap returned an invalid interface.',
+        }),
+      },
+      notifications: [],
+      getInterface: expect.any(Function),
+    });
+
+    expect(() =>
+      (response as SnapResponseWithInterface).getInterface(),
+    ).toThrow(
+      'Unable to get the interface from the Snap: The request to the Snap failed.',
+    );
+
+    await closeServer();
+    await snap.executionService.terminateAllSnaps();
+  });
+
+  it('gracefully handles returned invalid UI when not awaiting the request', async () => {
+    const controllerMessenger = getRootControllerMessenger();
+
+    const { snapId, close: closeServer } = await getMockServer({
+      sourceCode: `
+        module.exports.onHomePage = async (request) => {
+          return ({ content: 'foo' });
+        };
+      `,
+      port: 4242,
+    });
+
+    const snap = await handleInstallSnap(snapId);
+    const promise = handleRequest({
+      ...snap,
+      controllerMessenger,
+      handler: HandlerType.OnHomePage,
+      request: {
+        method: '',
+      },
+    });
+
+    await expect(promise.getInterface()).rejects.toThrow(
+      'Unable to get the interface from the Snap: The returned interface may be invalid. The error message received was: The Snap returned an invalid interface.',
+    );
+
+    await closeServer();
+    await snap.executionService.terminateAllSnaps();
+  });
+
   it('returns an error response', async () => {
     const { snapId, close: closeServer } = await getMockServer({
       sourceCode: `
@@ -124,6 +200,7 @@ describe('handleRequest', () => {
         }),
       },
       notifications: [],
+      getInterface: expect.any(Function),
     });
 
     await closeServer();
@@ -194,6 +271,8 @@ describe('getInterfaceApi', () => {
       content: getJsxElementFromComponent(content),
       clickElement: expect.any(Function),
       typeInField: expect.any(Function),
+      selectInDropdown: expect.any(Function),
+      uploadFile: expect.any(Function),
     });
   });
 
@@ -223,6 +302,8 @@ describe('getInterfaceApi', () => {
       content: getJsxElementFromComponent(content),
       clickElement: expect.any(Function),
       typeInField: expect.any(Function),
+      selectInDropdown: expect.any(Function),
+      uploadFile: expect.any(Function),
     });
   });
 
@@ -259,7 +340,7 @@ describe('getInterfaceApi', () => {
     await snapInterface.clickElement('foo');
 
     expect(controllerMessenger.call).toHaveBeenNthCalledWith(
-      4,
+      5,
       'ExecutionService:handleRpcRequest',
       MOCK_SNAP_ID,
       {
@@ -274,6 +355,7 @@ describe('getInterfaceApi', () => {
               name: 'foo',
             },
             id: expect.any(String),
+            context: null,
           },
         },
       },
@@ -321,6 +403,60 @@ describe('getInterfaceApi', () => {
               value: 'bar',
             },
             id: expect.any(String),
+            context: null,
+          },
+        },
+      },
+    );
+  });
+
+  it('sends the request to the snap when using `selectInDropdown`', async () => {
+    const controllerMessenger = getRootControllerMessenger();
+
+    jest.spyOn(controllerMessenger, 'call');
+
+    // eslint-disable-next-line no-new
+    new SnapInterfaceController({
+      messenger:
+        getRestrictedSnapInterfaceControllerMessenger(controllerMessenger),
+    });
+
+    const content = (
+      <Dropdown name="foo">
+        <Option value="option1">Option 1</Option>
+        <Option value="option2">Option 2</Option>
+      </Dropdown>
+    );
+
+    const getInterface = await getInterfaceApi(
+      { content },
+      MOCK_SNAP_ID,
+      controllerMessenger,
+    );
+
+    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+    const snapInterface = getInterface!();
+
+    await snapInterface.selectInDropdown('foo', 'option2');
+
+    expect(controllerMessenger.call).toHaveBeenNthCalledWith(
+      6,
+      'ExecutionService:handleRpcRequest',
+      MOCK_SNAP_ID,
+      {
+        origin: '',
+        handler: HandlerType.OnUserInput,
+        request: {
+          jsonrpc: '2.0',
+          method: ' ',
+          params: {
+            event: {
+              type: UserInputEventType.InputChangeEvent,
+              name: 'foo',
+              value: 'option2',
+            },
+            id: expect.any(String),
+            context: null,
           },
         },
       },

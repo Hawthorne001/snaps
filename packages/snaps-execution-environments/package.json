@@ -1,6 +1,6 @@
 {
   "name": "@metamask/snaps-execution-environments",
-  "version": "6.1.0",
+  "version": "6.6.0",
   "description": "Snap sandbox environments for executing SES javascript",
   "repository": {
     "type": "git",
@@ -51,10 +51,10 @@
     "build:ci": "tsup --clean"
   },
   "dependencies": {
-    "@metamask/json-rpc-engine": "^8.0.1",
+    "@metamask/json-rpc-engine": "^9.0.0",
     "@metamask/object-multiplex": "^2.0.0",
-    "@metamask/post-message-stream": "^8.0.0",
-    "@metamask/providers": "^16.1.0",
+    "@metamask/post-message-stream": "^8.1.0",
+    "@metamask/providers": "^17.0.0",
     "@metamask/rpc-errors": "^6.2.1",
     "@metamask/snaps-sdk": "workspace:^",
     "@metamask/snaps-utils": "workspace:^",
@@ -69,7 +69,7 @@
     "@babel/preset-typescript": "^7.23.2",
     "@esbuild-plugins/node-globals-polyfill": "^0.2.3",
     "@esbuild-plugins/node-modules-polyfill": "^0.2.2",
-    "@lavamoat/allow-scripts": "^3.0.3",
+    "@lavamoat/allow-scripts": "^3.0.4",
     "@lavamoat/lavapack": "^6.1.1",
     "@lavamoat/lavatube": "^1.0.0",
     "@metamask/auto-changelog": "^3.4.4",

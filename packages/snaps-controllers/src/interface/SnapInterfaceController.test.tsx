@@ -3,6 +3,7 @@ import { form, image, input, panel, text } from '@metamask/snaps-sdk';
 import {
   Box,
   Field,
+  FileInput,
   Form,
   Image,
   Input,
@@ -13,6 +14,7 @@ import { getJsxElementFromComponent } from '@metamask/snaps-utils';
 import { MOCK_SNAP_ID } from '@metamask/snaps-utils/test-utils';
 
 import {
+  MockApprovalController,
   getRestrictedSnapInterfaceControllerMessenger,
   getRootSnapInterfaceControllerMessenger,
 } from '../test-utils';
@@ -113,6 +115,69 @@ describe('SnapInterfaceController', () => {
 
       expect(content).toStrictEqual(element);
       expect(state).toStrictEqual({ foo: { bar: null } });
+    });
+
+    it('supports providing interface context', async () => {
+      const rootMessenger = getRootSnapInterfaceControllerMessenger();
+      const controllerMessenger =
+        getRestrictedSnapInterfaceControllerMessenger(rootMessenger);
+
+      /* eslint-disable-next-line no-new */
+      new SnapInterfaceController({
+        messenger: controllerMessenger,
+      });
+
+      const element = (
+        <Box>
+          <Text>
+            <Link href="https://foo.bar">foo</Link>
+          </Text>
+        </Box>
+      );
+
+      const id = await rootMessenger.call(
+        'SnapInterfaceController:createInterface',
+        MOCK_SNAP_ID,
+        element,
+        { foo: 'bar' },
+      );
+
+      const { content, context } = rootMessenger.call(
+        'SnapInterfaceController:getInterface',
+        MOCK_SNAP_ID,
+        id,
+      );
+
+      expect(content).toStrictEqual(element);
+      expect(context).toStrictEqual({ foo: 'bar' });
+    });
+
+    it('throws if interface context is too large', async () => {
+      const rootMessenger = getRootSnapInterfaceControllerMessenger();
+      const controllerMessenger =
+        getRestrictedSnapInterfaceControllerMessenger(rootMessenger);
+
+      /* eslint-disable-next-line no-new */
+      new SnapInterfaceController({
+        messenger: controllerMessenger,
+      });
+
+      const element = (
+        <Box>
+          <Text>
+            <Link href="https://foo.bar">foo</Link>
+          </Text>
+        </Box>
+      );
+
+      await expect(
+        rootMessenger.call(
+          'SnapInterfaceController:createInterface',
+          MOCK_SNAP_ID,
+          element,
+          { foo: 'a'.repeat(1_000_000) },
+        ),
+      ).rejects.toThrow('A Snap interface context may not be larger than 1 MB');
     });
 
     it('throws if a link is on the phishing list', async () => {
@@ -786,6 +851,56 @@ describe('SnapInterfaceController', () => {
 
       expect(state).toStrictEqual(newState);
     });
+
+    it('updates the interface state with a file', async () => {
+      const rootMessenger = getRootSnapInterfaceControllerMessenger();
+      const controllerMessenger =
+        getRestrictedSnapInterfaceControllerMessenger(rootMessenger);
+
+      /* eslint-disable-next-line no-new */
+      new SnapInterfaceController({
+        messenger: controllerMessenger,
+      });
+
+      const content = (
+        <Form name="foo">
+          <Field label="Bar">
+            <FileInput name="bar" />
+          </Field>
+        </Form>
+      );
+
+      const newState = {
+        foo: {
+          bar: {
+            name: 'test.png',
+            size: 123,
+            contentType: 'image/png',
+            contents: 'foo',
+          },
+        },
+      };
+
+      const id = await rootMessenger.call(
+        'SnapInterfaceController:createInterface',
+        MOCK_SNAP_ID,
+        content,
+      );
+
+      rootMessenger.call(
+        'SnapInterfaceController:updateInterfaceState',
+        id,
+        newState,
+      );
+
+      const { state } = rootMessenger.call(
+        'SnapInterfaceController:getInterface',
+        MOCK_SNAP_ID,
+        id,
+      );
+
+      expect(state).toStrictEqual(newState);
+    });
   });
 
   describe('deleteInterface', () => {
@@ -816,6 +931,169 @@ describe('SnapInterfaceController', () => {
           id,
         ),
       ).toThrow(`Interface with id '${id}' not found.`);
+    });
+  });
+
+  describe('resolveInterface', () => {
+    it('resolves the interface with the given value', async () => {
+      const rootMessenger = getRootSnapInterfaceControllerMessenger();
+      const controllerMessenger =
+        getRestrictedSnapInterfaceControllerMessenger(rootMessenger);
+
+      /* eslint-disable-next-line no-new */
+      new SnapInterfaceController({
+        messenger: controllerMessenger,
+      });
+
+      const approvalControllerMock = new MockApprovalController();
+
+      rootMessenger.registerActionHandler(
+        'ApprovalController:hasRequest',
+        approvalControllerMock.hasRequest.bind(approvalControllerMock),
+      );
+
+      rootMessenger.registerActionHandler(
+        'ApprovalController:acceptRequest',
+        approvalControllerMock.acceptRequest.bind(approvalControllerMock),
+      );
+
+      const id = await rootMessenger.call(
+        'SnapInterfaceController:createInterface',
+        MOCK_SNAP_ID,
+        <Box>
+          <Text>foo</Text>
+        </Box>,
+      );
+
+      const approvalPromise = approvalControllerMock.addRequest({
+        id,
+      });
+
+      rootMessenger.call(
+        'SnapInterfaceController:resolveInterface',
+        MOCK_SNAP_ID,
+        id,
+        'bar',
+      );
+
+      expect(await approvalPromise).toBe('bar');
+    });
+
+    it('throws if the interface does not exist', async () => {
+      const rootMessenger = getRootSnapInterfaceControllerMessenger();
+      const controllerMessenger =
+        getRestrictedSnapInterfaceControllerMessenger(rootMessenger);
+
+      /* eslint-disable-next-line no-new */
+      new SnapInterfaceController({
+        messenger: controllerMessenger,
+      });
+
+      const approvalControllerMock = new MockApprovalController();
+
+      rootMessenger.registerActionHandler(
+        'ApprovalController:hasRequest',
+        approvalControllerMock.hasRequest.bind(approvalControllerMock),
+      );
+
+      rootMessenger.registerActionHandler(
+        'ApprovalController:acceptRequest',
+        approvalControllerMock.acceptRequest.bind(approvalControllerMock),
+      );
+
+      await expect(
+        rootMessenger.call(
+          'SnapInterfaceController:resolveInterface',
+          MOCK_SNAP_ID,
+          'foo',
+          'bar',
+        ),
+      ).rejects.toThrow(`Interface with id 'foo' not found.`);
+    });
+
+    it('throws if the interface is resolved by another snap', async () => {
+      const rootMessenger = getRootSnapInterfaceControllerMessenger();
+      const controllerMessenger =
+        getRestrictedSnapInterfaceControllerMessenger(rootMessenger);
+
+      /* eslint-disable-next-line no-new */
+      new SnapInterfaceController({
+        messenger: controllerMessenger,
+      });
+
+      const approvalControllerMock = new MockApprovalController();
+
+      rootMessenger.registerActionHandler(
+        'ApprovalController:hasRequest',
+        approvalControllerMock.hasRequest.bind(approvalControllerMock),
+      );
+
+      rootMessenger.registerActionHandler(
+        'ApprovalController:acceptRequest',
+        approvalControllerMock.acceptRequest.bind(approvalControllerMock),
+      );
+
+      const id = await rootMessenger.call(
+        'SnapInterfaceController:createInterface',
+        MOCK_SNAP_ID,
+        <Box>
+          <Text>foo</Text>
+        </Box>,
+      );
+
+      // eslint-disable-next-line @typescript-eslint/no-floating-promises
+      approvalControllerMock.addRequest({
+        id,
+      });
+
+      await expect(
+        rootMessenger.call(
+          'SnapInterfaceController:resolveInterface',
+          'baz' as SnapId,
+          id,
+          'bar',
+        ),
+      ).rejects.toThrow('Interface not created by baz.');
+    });
+
+    it('throws if the interface has no approval request', async () => {
+      const rootMessenger = getRootSnapInterfaceControllerMessenger();
+      const controllerMessenger =
+        getRestrictedSnapInterfaceControllerMessenger(rootMessenger);
+
+      /* eslint-disable-next-line no-new */
+      new SnapInterfaceController({
+        messenger: controllerMessenger,
+      });
+
+      const approvalControllerMock = new MockApprovalController();
+
+      rootMessenger.registerActionHandler(
+        'ApprovalController:hasRequest',
+        approvalControllerMock.hasRequest.bind(approvalControllerMock),
+      );
+
+      rootMessenger.registerActionHandler(
+        'ApprovalController:acceptRequest',
+        approvalControllerMock.acceptRequest.bind(approvalControllerMock),
+      );
+
+      const id = await rootMessenger.call(
+        'SnapInterfaceController:createInterface',
+        MOCK_SNAP_ID,
+        <Box>
+          <Text>foo</Text>
+        </Box>,
+      );
+
+      await expect(
+        rootMessenger.call(
+          'SnapInterfaceController:resolveInterface',
+          MOCK_SNAP_ID,
+          id,
+          'bar',
+        ),
+      ).rejects.toThrow(`Approval request with id '${id}' not found.`);
     });
   });
 });

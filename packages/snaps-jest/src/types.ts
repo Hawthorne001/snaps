@@ -81,6 +81,22 @@ export type SignatureOptions = Infer<typeof SignatureOptionsStruct>;
  */
 export type SnapOptions = Infer<typeof SnapOptionsStruct>;
 
+/**
+ * Options for uploading a file.
+ *
+ * @property fileName - The name of the file. By default, this is inferred from
+ * the file path if it's a path, and defaults to an empty string if it's a
+ * `Uint8Array`.
+ * @property contentType - The content type of the file. By default, this is
+ * inferred from the file name if it's a path, and defaults to
+ * `application/octet-stream` if it's a `Uint8Array` or the content type cannot
+ * be inferred from the file name.
+ */
+export type FileOptions = {
+  fileName?: string;
+  contentType?: string;
+};
+
 export type SnapInterfaceActions = {
   /**
    * Click on an interface element.
@@ -96,6 +112,36 @@ export type SnapInterfaceActions = {
    * @param value - The value to type.
    */
   typeInField(name: string, value: string): Promise<void>;
+
+  /**
+   * Select an option with a value in a dropdown.
+   *
+   * @param name - The element name to type in.
+   * @param value - The value to type.
+   */
+  selectInDropdown(name: string, value: string): Promise<void>;
+
+  /**
+   * Upload a file.
+   *
+   * @param name - The element name to upload the file to.
+   * @param file - The file to upload. This can be a path to a file or a
+   * `Uint8Array` containing the file contents. If this is a path, the file is
+   * resolved relative to the current working directory.
+   * @param options - The file options.
+   * @param options.fileName - The name of the file. By default, this is
+   * inferred from the file path if it's a path, and defaults to an empty string
+   * if it's a `Uint8Array`.
+   * @param options.contentType - The content type of the file. By default, this
+   * is inferred from the file name if it's a path, and defaults to
+   * `application/octet-stream` if it's a `Uint8Array` or the content type
+   * cannot be inferred from the file name.
+   */
+  uploadFile(
+    name: string,
+    file: string | Uint8Array,
+    options?: FileOptions,
+  ): Promise<void>;
 };
 
 /**
@@ -170,10 +216,52 @@ export type SnapPromptInterface = {
   cancel(): Promise<void>;
 };
 
+/**
+ * A `snap_dialog` default interface that has a Footer with two buttons defined.
+ * The approval of this confirmation is handled by the snap.
+ */
+export type DefaultSnapInterfaceWithFooter = {
+  /**
+   * The content to show in the interface.
+   */
+  content: JSXElement;
+};
+
+/**
+ * A `snap_dialog` default interface that has a Footer with one button defined.
+ * A cancel button is automatically applied to the interface in this case.
+ */
+export type DefaultSnapInterfaceWithPartialFooter =
+  DefaultSnapInterfaceWithFooter & {
+    /**
+     * Cancel the dialog.
+     */
+    cancel(): Promise<void>;
+  };
+
+/**
+ * A `snap_dialog` default interface that has no Footer defined.
+ * A cancel and ok button is automatically applied to the interface in this case.
+ */
+export type DefaultSnapInterfaceWithoutFooter =
+  DefaultSnapInterfaceWithPartialFooter & {
+    /**
+     * Close the dialog.
+     *
+     */
+    ok(): Promise<void>;
+  };
+
+export type DefaultSnapInterface =
+  | DefaultSnapInterfaceWithFooter
+  | DefaultSnapInterfaceWithPartialFooter
+  | DefaultSnapInterfaceWithoutFooter;
+
 export type SnapInterface = (
   | SnapAlertInterface
   | SnapConfirmationInterface
   | SnapPromptInterface
+  | DefaultSnapInterface
 ) &
   SnapInterfaceActions;
 

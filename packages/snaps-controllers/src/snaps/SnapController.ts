@@ -82,6 +82,7 @@ import {
   OnNameLookupResponseStruct,
   getLocalizedSnapManifest,
   parseJson,
+  MAX_FILE_SIZE,
 } from '@metamask/snaps-utils';
 import type { Json, NonEmptyArray, SemVerRange } from '@metamask/utils';
 import {
@@ -127,7 +128,10 @@ import {
   setDiff,
   withTimeout,
 } from '../utils';
-import { ALLOWED_PERMISSIONS } from './constants';
+import {
+  ALLOWED_PERMISSIONS,
+  LEGACY_ENCRYPTION_KEY_DERIVATION_OPTIONS,
+} from './constants';
 import type { SnapLocation } from './location';
 import { detectSnapLocation } from './location';
 import type {
@@ -173,6 +177,7 @@ export interface PreinstalledSnap {
   manifest: SnapManifest;
   files: PreinstalledSnapFile[];
   removable?: boolean;
+  hidden?: boolean;
 }
 
 type SnapRpcHandler = (
@@ -569,6 +574,11 @@ type SnapControllerMessenger = RestrictedControllerMessenger<
 type FeatureFlags = {
   requireAllowlist?: boolean;
   allowLocalSnaps?: boolean;
+  disableSnapInstallation?: boolean;
+};
+
+type DynamicFeatureFlags = {
+  disableSnaps?: boolean;
 };
 
 type SnapControllerArgs = {
@@ -647,7 +657,7 @@ type SnapControllerArgs = {
   /**
    * A list of snaps to be preinstalled into the SnapController state on initialization.
    */
-  preinstalledSnaps?: PreinstalledSnap[];
+  preinstalledSnaps?: PreinstalledSnap[] | null;
 
   /**
    * A utility object containing functions required for state encryption.
@@ -660,6 +670,13 @@ type SnapControllerArgs = {
    * @returns The mnemonic as bytes.
    */
   getMnemonic: () => Promise<Uint8Array>;
+
+  /**
+   * A hook to get dynamic feature flags at runtime.
+   *
+   * @returns The feature flags.
+   */
+  getFeatureFlags: () => DynamicFeatureFlags;
 };
 type AddSnapArgs = {
   id: SnapId;
@@ -675,6 +692,7 @@ type SetSnapArgs = Omit<AddSnapArgs, 'location' | 'versionRange'> & {
   isUpdate?: boolean;
   removable?: boolean;
   preinstalled?: boolean;
+  hidden?: boolean;
 };
 
 const defaultState: SnapControllerState = {
@@ -744,6 +762,8 @@ export class SnapController extends BaseController<
 
   #getMnemonic: () => Promise<Uint8Array>;
 
+  #getFeatureFlags: () => DynamicFeatureFlags;
+
   #detectSnapLocation: typeof detectSnapLocation;
 
   #snapsRuntimeData: Map<SnapId, SnapRuntimeData>;
@@ -758,6 +778,8 @@ export class SnapController extends BaseController<
     StatusStates
   >;
 
+  #preinstalledSnaps: PreinstalledSnap[] | null;
+
   constructor({
     closeAllConnections,
     messenger,
@@ -771,9 +793,10 @@ export class SnapController extends BaseController<
     fetchFunction = globalThis.fetch.bind(globalThis),
     featureFlags = {},
     detectSnapLocation: detectSnapLocationFunction = detectSnapLocation,
-    preinstalledSnaps,
+    preinstalledSnaps = null,
     encryptor,
     getMnemonic,
+    getFeatureFlags = () => ({}),
   }: SnapControllerArgs) {
     super({
       messenger,
@@ -828,6 +851,8 @@ export class SnapController extends BaseController<
     this.#detectSnapLocation = detectSnapLocationFunction;
     this.#encryptor = encryptor;
     this.#getMnemonic = getMnemonic;
+    this.#getFeatureFlags = getFeatureFlags;
+    this.#preinstalledSnaps = preinstalledSnaps;
     this._onUnhandledSnapError = this._onUnhandledSnapError.bind(this);
     this._onOutboundRequest = this._onOutboundRequest.bind(this);
     this._onOutboundResponse = this._onOutboundResponse.bind(this);
@@ -852,31 +877,41 @@ export class SnapController extends BaseController<
     );
     /* eslint-enable @typescript-eslint/unbound-method */
 
-    this.messagingSystem.subscribe('SnapController:snapInstalled', ({ id }) => {
-      this.#callLifecycleHook(id, HandlerType.OnInstall).catch((error) => {
-        logError(
-          `Error when calling \`onInstall\` lifecycle hook for snap "${id}": ${getErrorMessage(
-            error,
-          )}`,
+    this.messagingSystem.subscribe(
+      'SnapController:snapInstalled',
+      ({ id }, origin) => {
+        this.#callLifecycleHook(origin, id, HandlerType.OnInstall).catch(
+          (error) => {
+            logError(
+              `Error when calling \`onInstall\` lifecycle hook for snap "${id}": ${getErrorMessage(
+                error,
+              )}`,
+            );
+          },
         );
-      });
-    });
+      },
+    );
 
-    this.messagingSystem.subscribe('SnapController:snapUpdated', ({ id }) => {
-      this.#callLifecycleHook(id, HandlerType.OnUpdate).catch((error) => {
-        logError(
-          `Error when calling \`onUpdate\` lifecycle hook for snap "${id}": ${getErrorMessage(
-            error,
-          )}`,
+    this.messagingSystem.subscribe(
+      'SnapController:snapUpdated',
+      ({ id }, _oldVersion, origin) => {
+        this.#callLifecycleHook(origin, id, HandlerType.OnUpdate).catch(
+          (error) => {
+            logError(
+              `Error when calling \`onUpdate\` lifecycle hook for snap "${id}": ${getErrorMessage(
+                error,
+              )}`,
+            );
+          },
         );
-      });
-    });
+      },
+    );
 
     this.#initializeStateMachine();
     this.#registerMessageHandlers();
 
-    if (preinstalledSnaps) {
-      this.#handlePreinstalledSnaps(preinstalledSnaps);
+    if (this.#preinstalledSnaps) {
+      this.#handlePreinstalledSnaps(this.#preinstalledSnaps);
     }
 
     Object.values(this.state?.snaps ?? {}).forEach((snap) =>
@@ -1054,7 +1089,13 @@ export class SnapController extends BaseController<
   }
 
   #handlePreinstalledSnaps(preinstalledSnaps: PreinstalledSnap[]) {
-    for (const { snapId, manifest, files, removable } of preinstalledSnaps) {
+    for (const {
+      snapId,
+      manifest,
+      files,
+      removable,
+      hidden,
+    } of preinstalledSnaps) {
       const existingSnap = this.get(snapId);
       const isAlreadyInstalled = existingSnap !== undefined;
       const isUpdate =
@@ -1123,6 +1164,7 @@ export class SnapController extends BaseController<
         origin: 'metamask',
         files: filesObject,
         removable,
+        hidden,
         preinstalled: true,
       });
 
@@ -1162,6 +1204,7 @@ export class SnapController extends BaseController<
    * for more information.
    */
   async updateBlockedSnaps(): Promise<void> {
+    this.#assertCanUsePlatform();
     await this.messagingSystem.call('SnapsRegistry:update');
 
     const blockedSnaps = await this.messagingSystem.call(
@@ -1282,6 +1325,27 @@ export class SnapController extends BaseController<
     }
   }
 
+  /**
+   * Asserts whether new Snaps are allowed to be installed.
+   */
+  #assertCanInstallSnaps() {
+    assert(
+      this.#featureFlags.disableSnapInstallation !== true,
+      'Installing Snaps is currently disabled in this version of MetaMask.',
+    );
+  }
+
+  /**
+   * Asserts whether the Snaps platform is allowed to run.
+   */
+  #assertCanUsePlatform() {
+    const flags = this.#getFeatureFlags();
+    assert(
+      flags.disableSnaps !== true,
+      'The Snaps platform requires basic functionality to be used. Enable basic functionality in the settings to use the Snaps platform.',
+    );
+  }
+
   async #stopSnapsLastRequestPastMax() {
     const entries = [...this.#snapsRuntimeData.entries()];
     return Promise.all(
@@ -1354,6 +1418,7 @@ export class SnapController extends BaseController<
    * @param snapId - The id of the Snap to start.
    */
   async startSnap(snapId: SnapId): Promise<void> {
+    this.#assertCanUsePlatform();
     const snap = this.state.snaps[snapId];
 
     if (snap.enabled === false) {
@@ -1625,7 +1690,9 @@ export class SnapController extends BaseController<
         snapId,
         salt,
         useCache,
-        keyMetadata,
+        // When decrypting state we expect key metadata to be present.
+        // If it isn't present, we assume that the Snap state we are decrypting is old enough to use the legacy encryption params.
+        keyMetadata: keyMetadata ?? LEGACY_ENCRYPTION_KEY_DERIVATION_OPTIONS,
       });
       const decryptedState = await this.#encryptor.decryptWithKey(key, parsed);
 
@@ -1751,7 +1818,14 @@ export class SnapController extends BaseController<
       return null;
     }
 
-    return encodeAuxiliaryFile(value, encoding);
+    const encoded = await encodeAuxiliaryFile(value, encoding);
+
+    assert(
+      encoded.length < MAX_FILE_SIZE,
+      `Failed to encode static file to "${encoding}": Static files must be less than 64 MB when encoded.`,
+    );
+
+    return encoded;
   }
 
   /**
@@ -1773,6 +1847,17 @@ export class SnapController extends BaseController<
       state.snaps = {};
       state.snapStates = {};
     });
+
+    this.#snapsRuntimeData.clear();
+
+    // We want to remove all snaps & permissions, except for preinstalled snaps
+    if (this.#preinstalledSnaps) {
+      this.#handlePreinstalledSnaps(this.#preinstalledSnaps);
+
+      Object.values(this.state?.snaps).forEach((snap) =>
+        this.#setupRuntime(snap.id),
+      );
+    }
   }
 
   /**
@@ -1880,7 +1965,7 @@ export class SnapController extends BaseController<
         origin,
         WALLET_SNAP_PERMISSION_KEY,
         SnapCaveatType.SnapIds,
-        { ...existingCaveat, [snapId]: {} },
+        { ...(existingCaveat.value as Record<string, Json>), [snapId]: {} },
       );
       return;
     }
@@ -2079,6 +2164,8 @@ export class SnapController extends BaseController<
     origin: string,
     requestedSnaps: RequestSnapsParams,
   ): Promise<RequestSnapsResult> {
+    this.#assertCanUsePlatform();
+
     const result: RequestSnapsResult = {};
 
     const snapIds = Object.keys(requestedSnaps);
@@ -2209,6 +2296,8 @@ export class SnapController extends BaseController<
         false,
       );
     }
+
+    this.#assertCanInstallSnaps();
 
     let pendingApproval = this.#createApproval({
       origin,
@@ -2354,6 +2443,8 @@ export class SnapController extends BaseController<
     newVersionRange: string = DEFAULT_REQUESTED_SNAP_VERSION,
     emitEvent = true,
   ): Promise<TruncatedSnap> {
+    this.#assertCanInstallSnaps();
+    this.#assertCanUsePlatform();
     if (!isValidSemVerRange(newVersionRange)) {
       throw new Error(
         `Received invalid snap version range: "${newVersionRange}".`,
@@ -2411,13 +2502,22 @@ export class SnapController extends BaseController<
       const { newPermissions, unusedPermissions, approvedPermissions } =
         this.#calculatePermissionsChange(snapId, processedPermissions);
 
+      const { newConnections, unusedConnections, approvedConnections } =
+        this.#calculateConnectionsChange(
+          snapId,
+          oldManifest.initialConnections ?? {},
+          manifest.initialConnections ?? {},
+        );
+
       this.#updateApproval(pendingApproval.id, {
-        connections: manifest.initialConnections ?? {},
         permissions: newPermissions,
         newVersion: manifest.version,
         newPermissions,
         approvedPermissions,
         unusedPermissions,
+        newConnections,
+        unusedConnections,
+        approvedConnections,
         loading: false,
       });
 
@@ -2540,6 +2640,7 @@ export class SnapController extends BaseController<
   async getRegistryMetadata(
     snapId: SnapId,
   ): Promise<SnapsRegistryMetadata | null> {
+    this.#assertCanUsePlatform();
     return await this.messagingSystem.call('SnapsRegistry:getMetadata', snapId);
   }
 
@@ -2704,6 +2805,7 @@ export class SnapController extends BaseController<
       isUpdate = false,
       removable,
       preinstalled,
+      hidden,
     } = args;
 
     const {
@@ -2759,6 +2861,7 @@ export class SnapController extends BaseController<
 
       removable,
       preinstalled,
+      hidden,
 
       id: snapId,
       initialConnections: manifest.result.initialConnections,
@@ -2941,6 +3044,8 @@ export class SnapController extends BaseController<
     handler: handlerType,
     request: rawRequest,
   }: SnapRpcHookArgs & { snapId: SnapId }): Promise<unknown> {
+    this.#assertCanUsePlatform();
+
     const request = {
       jsonrpc: '2.0',
       id: nanoid(),
@@ -3459,6 +3564,57 @@ export class SnapController extends BaseController<
     return { newPermissions, unusedPermissions, approvedPermissions };
   }
 
+  #isSubjectConnectedToSnap(snapId: SnapId, origin: string) {
+    const subjectPermissions = this.messagingSystem.call(
+      'PermissionController:getPermissions',
+      origin,
+    ) as SubjectPermissions<PermissionConstraint>;
+
+    const existingCaveat = subjectPermissions?.[
+      WALLET_SNAP_PERMISSION_KEY
+    ]?.caveats?.find((caveat) => caveat.type === SnapCaveatType.SnapIds);
+
+    return Boolean((existingCaveat?.value as Record<string, Json>)?.[snapId]);
+  }
+
+  #calculateConnectionsChange(
+    snapId: SnapId,
+    oldConnectionsSet: Record<string, Json>,
+    desiredConnectionsSet: Record<string, Json>,
+  ): {
+    newConnections: Record<string, Json>;
+    unusedConnections: Record<string, Json>;
+    approvedConnections: Record<string, Json>;
+  } {
+    // Filter out any origins that have been revoked since last install/update.
+    // That way they will be represented as new.
+    const filteredOldConnections = Object.keys(oldConnectionsSet)
+      .filter((origin) => this.#isSubjectConnectedToSnap(snapId, origin))
+      .reduce<Record<string, Json>>((accumulator, origin) => {
+        accumulator[origin] = oldConnectionsSet[origin];
+        return accumulator;
+      }, {});
+
+    const newConnections = setDiff(
+      desiredConnectionsSet,
+      filteredOldConnections,
+    );
+
+    const unusedConnections = setDiff(
+      filteredOldConnections,
+      desiredConnectionsSet,
+    );
+
+    // It's a Set Intersection of oldConnections and desiredConnectionsSet
+    // oldConnections ∖ (oldConnections ∖ desiredConnectionsSet) ⟺ oldConnections ∩ desiredConnectionsSet
+    const approvedConnections = setDiff(
+      filteredOldConnections,
+      unusedConnections,
+    );
+
+    return { newConnections, unusedConnections, approvedConnections };
+  }
+
   /**
    * Updates the permissions for a snap following an install, update or rollback.
    *
@@ -3535,12 +3691,17 @@ export class SnapController extends BaseController<
    * `endowment:lifecycle-hooks` permission. If the snap does not have the
    * permission, nothing happens.
    *
+   * @param origin - The origin.
    * @param snapId - The snap ID.
    * @param handler - The lifecycle hook to call. This should be one of the
    * supported lifecycle hooks.
    * @private
    */
-  async #callLifecycleHook(snapId: SnapId, handler: HandlerType) {
+  async #callLifecycleHook(
+    origin: string,
+    snapId: SnapId,
+    handler: HandlerType,
+  ) {
     const permissionName = handlerEndowments[handler];
 
     assert(permissionName, 'Lifecycle hook must have an endowment.');
@@ -3558,7 +3719,7 @@ export class SnapController extends BaseController<
     await this.handleRequest({
       snapId,
       handler,
-      origin: '',
+      origin,
       request: {
         jsonrpc: '2.0',
         method: handler,

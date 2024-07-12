@@ -6,6 +6,56 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [9.2.0]
+### Added
+- Add feature flag to disable Snap installation ([#2521](https://github.com/MetaMask/snaps/pull/2521))
+
+## [9.1.0]
+### Added
+- Add `Checkbox` component ([#2501](https://github.com/MetaMask/snaps/pull/2501))
+- Add `FileInput` component ([#2469](https://github.com/MetaMask/snaps/pull/2469))
+- Support additional components inside forms ([#2497](https://github.com/MetaMask/snaps/pull/2497))
+
+## [9.0.0]
+### Changed
+- **BREAKING:** Defer creation of offscreen document in `OffscreenExecutionService` ([#2473](https://github.com/MetaMask/snaps/pull/2473))
+- Update `onNameLookup` response to include `domainName` ([#2484](https://github.com/MetaMask/snaps/pull/2484))
+- Bump MetaMask dependencies ([#2460](https://github.com/MetaMask/snaps/pull/2460))
+
+### Fixed
+- Properly decrypt legacy state blobs ([#2472](https://github.com/MetaMask/snaps/pull/2472))
+
+## [8.4.0]
+### Added
+- Add `hidden` flag for preinstalled Snaps ([#2463](https://github.com/MetaMask/snaps/pull/2463))
+
+### Fixed
+- Use first Dropdown option as the default value ([#2465](https://github.com/MetaMask/snaps/pull/2465))
+
+## [8.3.1]
+### Fixed
+- Fix `react-native` export for tools that don't support `package.json` exports ([#2451](https://github.com/MetaMask/snaps/pull/2451))
+
+## [8.3.0]
+### Added
+- Add origin to lifecycle hooks ([#2441](https://github.com/MetaMask/snaps/pull/2441))
+  - Lifecycle hooks can now use the `origin` parameter to determine the origin
+    of the installation or update.
+
+## [8.2.0]
+### Added
+- Add `context` field to `snap_createInterface` ([#2413](https://github.com/MetaMask/snaps/pull/2413))
+- Add feature flag to disable platform ([#2434](https://github.com/MetaMask/snaps/pull/2434))
+- Add support for `Dropdown` component ([#2420](https://github.com/MetaMask/snaps/pull/2420))
+- Add `initialConnections` diff calculations needed for Snap update ([#2424](https://github.com/MetaMask/snaps/pull/2424))
+
+### Fixed
+- Correctly merge caveats when using initial connections ([#2419](https://github.com/MetaMask/snaps/pull/2419))
+
+## [8.1.1]
+### Fixed
+- Re-instantiate preinstalled Snaps after clearing state ([#2393](https://github.com/MetaMask/snaps/pull/2393))
+
 ## [8.1.0]
 ### Added
 - Add JSX support for custom UI ([#2258](https://github.com/MetaMask/snaps/pull/2258))
@@ -257,7 +307,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - The version of the package no longer needs to match the version of all other
     MetaMask Snaps packages.
 
-[Unreleased]: https://github.com/MetaMask/snaps/compare/@metamask/snaps-controllers@8.1.0...HEAD
+[Unreleased]: https://github.com/MetaMask/snaps/compare/@metamask/snaps-controllers@9.2.0...HEAD
+[9.2.0]: https://github.com/MetaMask/snaps/compare/@metamask/snaps-controllers@9.1.0...@metamask/snaps-controllers@9.2.0
+[9.1.0]: https://github.com/MetaMask/snaps/compare/@metamask/snaps-controllers@9.0.0...@metamask/snaps-controllers@9.1.0
+[9.0.0]: https://github.com/MetaMask/snaps/compare/@metamask/snaps-controllers@8.4.0...@metamask/snaps-controllers@9.0.0
+[8.4.0]: https://github.com/MetaMask/snaps/compare/@metamask/snaps-controllers@8.3.1...@metamask/snaps-controllers@8.4.0
+[8.3.1]: https://github.com/MetaMask/snaps/compare/@metamask/snaps-controllers@8.3.0...@metamask/snaps-controllers@8.3.1
+[8.3.0]: https://github.com/MetaMask/snaps/compare/@metamask/snaps-controllers@8.2.0...@metamask/snaps-controllers@8.3.0
+[8.2.0]: https://github.com/MetaMask/snaps/compare/@metamask/snaps-controllers@8.1.1...@metamask/snaps-controllers@8.2.0
+[8.1.1]: https://github.com/MetaMask/snaps/compare/@metamask/snaps-controllers@8.1.0...@metamask/snaps-controllers@8.1.1
 [8.1.0]: https://github.com/MetaMask/snaps/compare/@metamask/snaps-controllers@8.0.0...@metamask/snaps-controllers@8.1.0
 [8.0.0]: https://github.com/MetaMask/snaps/compare/@metamask/snaps-controllers@7.0.1...@metamask/snaps-controllers@8.0.0
 [7.0.1]: https://github.com/MetaMask/snaps/compare/@metamask/snaps-controllers@7.0.0...@metamask/snaps-controllers@7.0.1

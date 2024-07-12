@@ -41,6 +41,7 @@ import {
   validateTextLinks,
   walkJsx,
   getJsxChildren,
+  serialiseJsx,
 } from './ui';
 
 describe('getTextChildren', () => {
@@ -377,6 +378,16 @@ describe('getJsxElementFromComponent', () => {
   it('returns the JSX element for a row component', () => {
     expect(getJsxElementFromComponent(row('foo', text('bar')))).toStrictEqual(
       <Row label="foo">
+        <Text>bar</Text>
+      </Row>,
+    );
+  });
+
+  it('returns the JSX element for a row component with a variant', () => {
+    expect(
+      getJsxElementFromComponent(row('foo', text('bar'), 'critical')),
+    ).toStrictEqual(
+      <Row label="foo" variant="critical">
         <Text>bar</Text>
       </Row>,
     );
@@ -774,6 +785,69 @@ describe('getJsxChildren', () => {
       <Text>World</Text>,
     ]);
   });
+
+  it('removes falsy children from the array', () => {
+    const element = (
+      <Box>
+        <Text>Hello</Text>
+        {false && <Text>Foo</Text>}
+        <Text>World</Text>
+      </Box>
+    );
+
+    expect(getJsxChildren(element)).toStrictEqual([
+      <Text>Hello</Text>,
+      <Text>World</Text>,
+    ]);
+  });
+
+  it('removes falsy children from a text element', () => {
+    const element = (
+      <Text>
+        Hello
+        {false && 'Foo'}
+        World
+      </Text>
+    );
+
+    expect(getJsxChildren(element)).toStrictEqual(['Hello', 'World']);
+  });
+
+  it('removes `true` children from the array', () => {
+    const element = (
+      <Text>
+        Hello
+        {true}
+        World
+      </Text>
+    );
+
+    expect(getJsxChildren(element)).toStrictEqual(['Hello', 'World']);
+  });
+
+  it('flattens the children array', () => {
+    const element = (
+      <Box>
+        <Text>Hello</Text>
+        {[1, 2, 3].map((value) => (
+          <Text>{value.toString()}</Text>
+        ))}
+        <Text>World</Text>
+      </Box>
+    );
+
+    const children = getJsxChildren(element);
+
+    expect(element.props.children).toHaveLength(3);
+    expect(children).toHaveLength(5);
+    expect(children).toStrictEqual([
+      <Text>Hello</Text>,
+      <Text>1</Text>,
+      <Text>2</Text>,
+      <Text>3</Text>,
+      <Text>World</Text>,
+    ]);
+  });
 });
 
 describe('walkJsx', () => {
@@ -791,12 +865,13 @@ describe('walkJsx', () => {
     walkJsx(tree, callback);
 
     expect(callback).toHaveBeenCalledTimes(4);
-    expect(callback).toHaveBeenCalledWith(tree);
-    expect(callback).toHaveBeenCalledWith(tree.props.children[0]);
+    expect(callback).toHaveBeenCalledWith(tree, 0);
+    expect(callback).toHaveBeenCalledWith(tree.props.children[0], 1);
     expect(callback).toHaveBeenCalledWith(
       tree.props.children[0].props.children,
+      2,
     );
-    expect(callback).toHaveBeenCalledWith(tree.props.children[1]);
+    expect(callback).toHaveBeenCalledWith(tree.props.children[1], 1);
   });
 
   it('calls the callback on each node in an array of nodes', () => {
@@ -814,13 +889,14 @@ describe('walkJsx', () => {
     walkJsx(tree, callback);
 
     expect(callback).toHaveBeenCalledTimes(5);
-    expect(callback).toHaveBeenCalledWith(tree[0]);
-    expect(callback).toHaveBeenCalledWith(tree[0].props.children[0]);
+    expect(callback).toHaveBeenCalledWith(tree[0], 0);
+    expect(callback).toHaveBeenCalledWith(tree[0].props.children[0], 1);
     expect(callback).toHaveBeenCalledWith(
       tree[0].props.children[0].props.children,
+      2,
     );
-    expect(callback).toHaveBeenCalledWith(tree[0].props.children[1]);
-    expect(callback).toHaveBeenCalledWith(tree[1]);
+    expect(callback).toHaveBeenCalledWith(tree[0].props.children[1], 1);
+    expect(callback).toHaveBeenCalledWith(tree[1], 0);
   });
 
   it("returns the result of the callback if it's not undefined", () => {
@@ -881,5 +957,73 @@ describe('walkJsx', () => {
     const callback = jest.fn();
     const result = walkJsx(tree, callback);
     expect(result).toBeUndefined();
+  });
+});
+
+describe('serialiseJsx', () => {
+  it('serialises a JSX element', () => {
+    expect(
+      serialiseJsx(
+        <Box>
+          <Text>Hello</Text>
+        </Box>,
+        0,
+      ),
+    ).toMatchInlineSnapshot(`
+      "<Box>
+        <Text>
+          Hello
+        </Text>
+      </Box>"
+    `);
+  });
+
+  it('serialises a JSX element with props', () => {
+    expect(
+      serialiseJsx(
+        <Form name="foo">
+          <Field label="Foo">
+            <Input name="input" type="text" />
+            <Button variant="primary">Primary button</Button>
+          </Field>
+          <Field label="Bar">
+            <Input name="input" type="text" />
+            <Button variant="destructive">Secondary button</Button>
+          </Field>
+        </Form>,
+        0,
+      ),
+    ).toMatchInlineSnapshot(`
+      "<Form name="foo">
+        <Field label="Foo">
+          <Input name="input" type="text" />
+          <Button variant="primary">
+            Primary button
+          </Button>
+        </Field>
+        <Field label="Bar">
+          <Input name="input" type="text" />
+          <Button variant="destructive">
+            Secondary button
+          </Button>
+        </Field>
+      </Form>"
+    `);
+  });
+
+  it('serialises a JSX element with non-string props', () => {
+    expect(
+      serialiseJsx(
+        // @ts-expect-error - Invalid prop.
+        <Box foo={0} />,
+      ),
+    ).toMatchInlineSnapshot(`"<Box foo={0} />"`);
+  });
+
+  it('serialises a JSX element with null children', () => {
+    expect(serialiseJsx(<Box>{null}</Box>)).toMatchInlineSnapshot(`
+      "<Box>
+      </Box>"
+    `);
   });
 });

@@ -1,6 +1,6 @@
 {
   "name": "@metamask/snaps-controllers",
-  "version": "8.1.0",
+  "version": "9.2.0",
   "description": "Controllers for MetaMask Snaps.",
   "repository": {
     "type": "git",
@@ -29,7 +29,9 @@
   "module": "./dist/index.mjs",
   "types": "./dist/types/index.d.ts",
   "files": [
-    "dist"
+    "dist",
+    "react-native.d.ts",
+    "react-native.js"
   ],
   "scripts": {
     "test:prepare": "yarn mkdirp test/fixtures && ./scripts/generate-fixtures.sh",
@@ -51,14 +53,14 @@
     "build:ci": "tsup --clean"
   },
   "dependencies": {
-    "@metamask/approval-controller": "^6.0.2",
-    "@metamask/base-controller": "^5.0.2",
-    "@metamask/json-rpc-engine": "^8.0.1",
-    "@metamask/json-rpc-middleware-stream": "^7.0.1",
+    "@metamask/approval-controller": "^7.0.0",
+    "@metamask/base-controller": "^6.0.0",
+    "@metamask/json-rpc-engine": "^9.0.0",
+    "@metamask/json-rpc-middleware-stream": "^8.0.0",
     "@metamask/object-multiplex": "^2.0.0",
-    "@metamask/permission-controller": "^9.0.2",
-    "@metamask/phishing-controller": "^9.0.1",
-    "@metamask/post-message-stream": "^8.0.0",
+    "@metamask/permission-controller": "^10.0.0",
+    "@metamask/phishing-controller": "^10.0.0",
+    "@metamask/post-message-stream": "^8.1.0",
     "@metamask/rpc-errors": "^6.2.1",
     "@metamask/snaps-registry": "^3.1.0",
     "@metamask/snaps-rpc-methods": "workspace:^",
@@ -79,7 +81,7 @@
   "devDependencies": {
     "@esbuild-plugins/node-globals-polyfill": "^0.2.3",
     "@esbuild-plugins/node-modules-polyfill": "^0.2.2",
-    "@lavamoat/allow-scripts": "^3.0.3",
+    "@lavamoat/allow-scripts": "^3.0.4",
     "@metamask/auto-changelog": "^3.4.4",
     "@metamask/browser-passworder": "^5.0.0",
     "@metamask/eslint-config": "^12.1.0",

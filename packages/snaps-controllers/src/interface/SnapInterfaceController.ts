@@ -1,3 +1,7 @@
+import type {
+  AcceptRequest,
+  HasApprovalRequest,
+} from '@metamask/approval-controller';
 import type { RestrictedControllerMessenger } from '@metamask/base-controller';
 import { BaseController } from '@metamask/base-controller';
 import type {
@@ -8,13 +12,19 @@ import type {
   InterfaceState,
   SnapId,
   ComponentOrElement,
+  InterfaceContext,
 } from '@metamask/snaps-sdk';
 import type { JSXElement } from '@metamask/snaps-sdk/jsx';
 import { getJsonSizeUnsafe, validateJsxLinks } from '@metamask/snaps-utils';
+import type { Json } from '@metamask/utils';
 import { assert } from '@metamask/utils';
 import { nanoid } from 'nanoid';
 
-import { constructState, getJsxInterface } from './utils';
+import {
+  constructState,
+  getJsxInterface,
+  validateInterfaceContext,
+} from './utils';
 
 const MAX_UI_CONTENT_SIZE = 10_000_000; // 10 mb
 
@@ -45,16 +55,24 @@ export type UpdateInterfaceState = {
   handler: SnapInterfaceController['updateInterfaceState'];
 };
 
+export type ResolveInterface = {
+  type: `${typeof controllerName}:resolveInterface`;
+  handler: SnapInterfaceController['resolveInterface'];
+};
+
 export type SnapInterfaceControllerAllowedActions =
   | TestOrigin
-  | MaybeUpdateState;
+  | MaybeUpdateState
+  | HasApprovalRequest
+  | AcceptRequest;
 
 export type SnapInterfaceControllerActions =
   | CreateInterface
   | GetInterface
   | UpdateInterface
   | DeleteInterface
-  | UpdateInterfaceState;
+  | UpdateInterfaceState
+  | ResolveInterface;
 
 export type SnapInterfaceControllerMessenger = RestrictedControllerMessenger<
   typeof controllerName,
@@ -68,6 +86,7 @@ export type StoredInterface = {
   snapId: SnapId;
   content: JSXElement;
   state: InterfaceState;
+  context: InterfaceContext | null;
 };
 
 export type SnapInterfaceControllerState = {
@@ -129,6 +148,11 @@ export class SnapInterfaceController extends BaseController<
       `${controllerName}:updateInterfaceState`,
       this.updateInterfaceState.bind(this),
     );
+
+    this.messagingSystem.registerActionHandler(
+      `${controllerName}:resolveInterface`,
+      this.resolveInterface.bind(this),
+    );
   }
 
   /**
@@ -136,11 +160,17 @@ export class SnapInterfaceController extends BaseController<
    *
    * @param snapId - The snap id that created the interface.
    * @param content - The interface content.
+   * @param context - An optional interface context object.
    * @returns The newly interface id.
    */
-  async createInterface(snapId: SnapId, content: ComponentOrElement) {
+  async createInterface(
+    snapId: SnapId,
+    content: ComponentOrElement,
+    context?: InterfaceContext,
+  ) {
     const element = getJsxInterface(content);
     await this.#validateContent(element);
+    validateInterfaceContext(context);
 
     const id = nanoid();
     const componentState = constructState({}, element);
@@ -152,6 +182,7 @@ export class SnapInterfaceController extends BaseController<
         snapId,
         content: element,
         state: componentState,
+        context: context ?? null,
       };
     });
 
@@ -220,6 +251,23 @@ export class SnapInterfaceController extends BaseController<
   }
 
   /**
+   * Resolve the promise of a given interface approval request.
+   * The approval needs to have the same ID as the interface.
+   *
+   * @param snapId - The snap id.
+   * @param id - The interface id.
+   * @param value - The value to resolve the promise with.
+   */
+  async resolveInterface(snapId: SnapId, id: string, value: Json) {
+    this.#validateArgs(snapId, id);
+    this.#validateApproval(id);
+
+    await this.#acceptApprovalRequest(id, value);
+
+    this.deleteInterface(id);
+  }
+
+  /**
    * Utility function to validate the args passed to the other methods.
    *
    * @param snapId - The snap id.
@@ -239,6 +287,18 @@ export class SnapInterfaceController extends BaseController<
   }
 
   /**
+   * Utility function to validate that the approval request exists.
+   *
+   * @param id - The interface id.
+   */
+  #validateApproval(id: string) {
+    assert(
+      this.#hasApprovalRequest(id),
+      `Approval request with id '${id}' not found.`,
+    );
+  }
+
+  /**
    * Trigger a Phishing list update if needed.
    */
   async #triggerPhishingListUpdate() {
@@ -254,6 +314,33 @@ export class SnapInterfaceController extends BaseController<
   #checkPhishingList(origin: string) {
     return this.messagingSystem.call('PhishingController:testOrigin', origin)
       .result;
+  }
+
+  /**
+   * Check if an approval request exists for a given interface by looking up
+   * if the ApprovalController has a request with the given interface ID.
+   *
+   * @param id - The interface id.
+   * @returns True if an approval request exists, otherwise false.
+   */
+  #hasApprovalRequest(id: string) {
+    return this.messagingSystem.call('ApprovalController:hasRequest', {
+      id,
+    });
+  }
+
+  /**
+   * Accept an approval request for a given interface.
+   *
+   * @param id - The interface id.
+   * @param value - The value to resolve the promise with.
+   */
+  async #acceptApprovalRequest(id: string, value: Json) {
+    await this.messagingSystem.call(
+      'ApprovalController:acceptRequest',
+      id,
+      value,
+    );
   }
 
   /**

@@ -6,6 +6,46 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [7.7.0]
+### Added
+- Support conditional children in most JSX components ([#2506](https://github.com/MetaMask/snaps/pull/2506))
+- Support additional components inside forms ([#2497](https://github.com/MetaMask/snaps/pull/2497))
+
+### Fixed
+- Improve validation of `endowment:rpc` ([#2512](https://github.com/MetaMask/snaps/pull/2512))
+
+## [7.6.0]
+### Added
+- Support nested children in JSX ([#2482](https://github.com/MetaMask/snaps/pull/2482))
+
+### Changed
+- Update `onNameLookup` response to include `domainName` ([#2484](https://github.com/MetaMask/snaps/pull/2484))
+- Bump MetaMask dependencies ([#2460](https://github.com/MetaMask/snaps/pull/2460))
+
+### Fixed
+- Fix a problem with converting legacy UIs that used `row()` ([#2486](https://github.com/MetaMask/snaps/pull/2486))
+- Revert requiring at least one child in JSX components ([#2470](https://github.com/MetaMask/snaps/pull/2470))
+
+## [7.5.0]
+### Added
+- Allow wildcards in `allowedOrigins` ([#2458](https://github.com/MetaMask/snaps/pull/2458))
+- Add `hidden` flag for preinstalled Snaps ([#2463](https://github.com/MetaMask/snaps/pull/2463))
+
+### Fixed
+- Require at least 1 child in JSX components ([#2466](https://github.com/MetaMask/snaps/pull/2466))
+
+## [7.4.1]
+### Fixed
+- Fix invalid `@metamask/snaps-sdk` imports ([#2452](https://github.com/MetaMask/snaps/pull/2452))
+
+## [7.4.0]
+### Added
+- Add support for BIP-32-Ed25519 / CIP-3 key derivation ([#2408](https://github.com/MetaMask/snaps/pull/2408))
+
+## Fixed
+
+- Fix build producing invalid JSX types ([#2410](https://github.com/MetaMask/snaps/pull/2410))
+
 ## [7.3.0]
 ### Added
 - Add JSX support for custom UI ([#2258](https://github.com/MetaMask/snaps/pull/2258), [#2383](https://github.com/MetaMask/snaps/pull/2383))
@@ -225,7 +265,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - The version of the package no longer needs to match the version of all other
     MetaMask Snaps packages.
 
-[Unreleased]: https://github.com/MetaMask/snaps/compare/@metamask/snaps-utils@7.3.0...HEAD
+[Unreleased]: https://github.com/MetaMask/snaps/compare/@metamask/snaps-utils@7.7.0...HEAD
+[7.7.0]: https://github.com/MetaMask/snaps/compare/@metamask/snaps-utils@7.6.0...@metamask/snaps-utils@7.7.0
+[7.6.0]: https://github.com/MetaMask/snaps/compare/@metamask/snaps-utils@7.5.0...@metamask/snaps-utils@7.6.0
+[7.5.0]: https://github.com/MetaMask/snaps/compare/@metamask/snaps-utils@7.4.1...@metamask/snaps-utils@7.5.0
+[7.4.1]: https://github.com/MetaMask/snaps/compare/@metamask/snaps-utils@7.4.0...@metamask/snaps-utils@7.4.1
+[7.4.0]: https://github.com/MetaMask/snaps/compare/@metamask/snaps-utils@7.3.0...@metamask/snaps-utils@7.4.0
 [7.3.0]: https://github.com/MetaMask/snaps/compare/@metamask/snaps-utils@7.2.0...@metamask/snaps-utils@7.3.0
 [7.2.0]: https://github.com/MetaMask/snaps/compare/@metamask/snaps-utils@7.1.0...@metamask/snaps-utils@7.2.0
 [7.1.0]: https://github.com/MetaMask/snaps/compare/@metamask/snaps-utils@7.0.4...@metamask/snaps-utils@7.1.0

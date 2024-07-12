@@ -1,4 +1,8 @@
 import { createSnapComponent } from '../../component';
+import type { ButtonElement } from './Button';
+import type { CheckboxElement } from './Checkbox';
+import type { DropdownElement } from './Dropdown';
+import type { FileInputElement } from './FileInput';
 import type { InputElement } from './Input';
 
 /**
@@ -11,7 +15,12 @@ import type { InputElement } from './Input';
 export type FieldProps = {
   label?: string | undefined;
   error?: string | undefined;
-  children: InputElement;
+  children:
+    | [InputElement, ButtonElement]
+    | DropdownElement
+    | FileInputElement
+    | InputElement
+    | CheckboxElement;
 };
 
 const TYPE = 'Field';
@@ -28,6 +37,11 @@ const TYPE = 'Field';
  * @example
  * <Field label="Username">
  *   <Input name="username" type="text" />
+ *   <Button type="submit">Submit</Button>
+ * </Field>
+ * @example
+ * <Field label="Upload file">
+ *   <FileInput name="file" accept={['image/*']} multiple />
  * </Field>
  */
 export const Field = createSnapComponent<FieldProps, typeof TYPE>(TYPE);

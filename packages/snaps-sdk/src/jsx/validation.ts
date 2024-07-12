@@ -4,7 +4,7 @@ import {
   isPlainObject,
   JsonStruct,
 } from '@metamask/utils';
-import type { Struct } from 'superstruct';
+import type { Infer, Struct } from 'superstruct';
 import {
   is,
   boolean,
@@ -16,18 +16,24 @@ import {
   object,
   record,
   string,
+  tuple,
 } from 'superstruct';
-import type { ObjectSchema } from 'superstruct/dist/utils';
+import type {
+  AnyStruct,
+  InferStructTuple,
+  ObjectSchema,
+} from 'superstruct/dist/utils';
 
 import type { Describe } from '../internals';
-import { literal, nullUnion } from '../internals';
+import { literal, nullUnion, svg, typedUnion } from '../internals';
 import type { EmptyObject } from '../types';
 import type {
   GenericSnapElement,
   JsonObject,
   Key,
-  MaybeArray,
+  Nestable,
   SnapElement,
+  SnapsChildren,
   StringElement,
 } from './component';
 import type {
@@ -35,8 +41,12 @@ import type {
   BoldElement,
   BoxElement,
   ButtonElement,
+  CheckboxElement,
+  CardElement,
   CopyableElement,
   DividerElement,
+  DropdownElement,
+  OptionElement,
   FieldElement,
   FormElement,
   HeadingElement,
@@ -49,6 +59,11 @@ import type {
   SpinnerElement,
   StandardFormattingElement,
   TextElement,
+  TooltipElement,
+  ValueElement,
+  FileInputElement,
+  ContainerElement,
+  FooterElement,
 } from './components';
 
 /**
@@ -59,9 +74,9 @@ export const KeyStruct: Describe<Key> = nullUnion([string(), number()]);
 /**
  * A struct for the {@link StringElement} type.
  */
-export const StringElementStruct: Describe<StringElement> = maybeArray(
+export const StringElementStruct: Describe<StringElement> = children([
   string(),
-);
+]);
 
 /**
  * A struct for the {@link GenericSnapElement} type.
@@ -73,15 +88,36 @@ export const ElementStruct: Describe<GenericSnapElement> = object({
 });
 
 /**
- * A helper function for creating a struct for a {@link MaybeArray} type.
+ * A helper function for creating a struct for a {@link Nestable} type.
  *
- * @param struct - The struct for the maybe array type.
- * @returns The struct for the maybe array type.
+ * @param struct - The struct for the type to test.
+ * @returns The struct for the nestable type.
  */
-function maybeArray<Type, Schema>(
+function nestable<Type, Schema>(
   struct: Struct<Type, Schema>,
-): Struct<MaybeArray<Type>, any> {
-  return nullUnion([struct, array(struct)]);
+): Struct<Nestable<Type>, any> {
+  const nestableStruct: Struct<Nestable<Type>> = nullUnion([
+    struct,
+    array(lazy(() => nestableStruct)),
+  ]);
+
+  return nestableStruct;
+}
+
+/**
+ * A helper function for creating a struct which allows children of a specific
+ * type, as well as `null` and `boolean`.
+ *
+ * @param structs - The structs to allow as children.
+ * @returns The struct for the children.
+ */
+function children<Head extends AnyStruct, Tail extends AnyStruct[]>(
+  structs: [head: Head, ...tail: Tail],
+): Struct<
+  Nestable<Infer<Head> | InferStructTuple<Tail>[number] | boolean | null>,
+  null
+> {
+  return nestable(nullable(nullUnion([...structs, boolean()])));
 }
 
 /**
@@ -114,6 +150,16 @@ export const ButtonStruct: Describe<ButtonElement> = element('Button', {
 });
 
 /**
+ * A struct for the {@link CheckboxElement} type.
+ */
+export const CheckboxStruct: Describe<CheckboxElement> = element('Checkbox', {
+  name: string(),
+  checked: optional(boolean()),
+  label: optional(string()),
+  variant: optional(nullUnion([literal('default'), literal('toggle')])),
+});
+
+/**
  * A struct for the {@link InputElement} type.
  */
 export const InputStruct: Describe<InputElement> = element('Input', {
@@ -126,19 +172,96 @@ export const InputStruct: Describe<InputElement> = element('Input', {
 });
 
 /**
+ * A struct for the {@link OptionElement} type.
+ */
+export const OptionStruct: Describe<OptionElement> = element('Option', {
+  value: string(),
+  children: string(),
+});
+
+/**
+ * A struct for the {@link DropdownElement} type.
+ */
+export const DropdownStruct: Describe<DropdownElement> = element('Dropdown', {
+  name: string(),
+  value: optional(string()),
+  children: children([OptionStruct]),
+});
+
+/**
+ * A struct for the {@link FileInputElement} type.
+ */
+export const FileInputStruct: Describe<FileInputElement> = element(
+  'FileInput',
+  {
+    name: string(),
+    accept: nullUnion([optional(array(string()))]),
+    compact: optional(boolean()),
+  },
+);
+
+/**
+ * A subset of JSX elements that represent the tuple Button + Input of the Field children.
+ */
+const BUTTON_INPUT = [InputStruct, ButtonStruct] as [
+  typeof InputStruct,
+  typeof ButtonStruct,
+];
+
+/**
+ * A subset of JSX elements that are allowed as single children of the Field component.
+ */
+const FIELD_CHILDREN_ARRAY = [
+  InputStruct,
+  DropdownStruct,
+  FileInputStruct,
+  CheckboxStruct,
+] as [
+  typeof InputStruct,
+  typeof DropdownStruct,
+  typeof FileInputStruct,
+  typeof CheckboxStruct,
+];
+
+/**
+ * A union of the allowed children of the Field component.
+ * This is mainly used in the simulator for validation purposes.
+ */
+export const FieldChildUnionStruct = nullUnion([
+  ...FIELD_CHILDREN_ARRAY,
+  ...BUTTON_INPUT,
+]);
+
+/**
+ * A subset of JSX elements that are allowed as children of the Field component.
+ */
+const FieldChildStruct = nullUnion([
+  tuple(BUTTON_INPUT),
+  ...FIELD_CHILDREN_ARRAY,
+]);
+
+/**
  * A struct for the {@link FieldElement} type.
  */
 export const FieldStruct: Describe<FieldElement> = element('Field', {
   label: optional(string()),
   error: optional(string()),
-  children: InputStruct,
+  children: FieldChildStruct,
 });
+
+/**
+ * A subset of JSX elements that are allowed as children of the Form component.
+ */
+export const FormChildStruct = children(
+  // eslint-disable-next-line @typescript-eslint/no-use-before-define
+  [FieldStruct, lazy(() => BoxChildStruct)],
+) as unknown as Struct<SnapsChildren<GenericSnapElement>, null>;
 
 /**
  * A struct for the {@link FormElement} type.
  */
 export const FormStruct: Describe<FormElement> = element('Form', {
-  children: maybeArray(nullUnion([FieldStruct, ButtonStruct])),
+  children: FormChildStruct,
   name: string(),
 });
 
@@ -146,34 +269,26 @@ export const FormStruct: Describe<FormElement> = element('Form', {
  * A struct for the {@link BoldElement} type.
  */
 export const BoldStruct: Describe<BoldElement> = element('Bold', {
-  children: maybeArray(
-    nullable(
-      nullUnion([
-        string(),
-        // eslint-disable-next-line @typescript-eslint/no-use-before-define
-        lazy(() => ItalicStruct) as unknown as Struct<
-          SnapElement<JsonObject, 'Italic'>
-        >,
-      ]),
-    ),
-  ),
+  children: children([
+    string(),
+    // eslint-disable-next-line @typescript-eslint/no-use-before-define
+    lazy(() => ItalicStruct) as unknown as Struct<
+      SnapElement<JsonObject, 'Italic'>
+    >,
+  ]),
 });
 
 /**
  * A struct for the {@link ItalicElement} type.
  */
 export const ItalicStruct: Describe<ItalicElement> = element('Italic', {
-  children: maybeArray(
-    nullable(
-      nullUnion([
-        string(),
-        // eslint-disable-next-line @typescript-eslint/no-use-before-define
-        lazy(() => BoldStruct) as unknown as Struct<
-          SnapElement<JsonObject, 'Bold'>
-        >,
-      ]),
-    ),
-  ),
+  children: children([
+    string(),
+    // eslint-disable-next-line @typescript-eslint/no-use-before-define
+    lazy(() => BoldStruct) as unknown as Struct<
+      SnapElement<JsonObject, 'Bold'>
+    >,
+  ]),
 });
 
 export const FormattingStruct: Describe<StandardFormattingElement> = nullUnion([
@@ -188,15 +303,62 @@ export const AddressStruct: Describe<AddressElement> = element('Address', {
   address: HexChecksumAddressStruct,
 });
 
+export const BoxChildrenStruct = children(
+  // eslint-disable-next-line @typescript-eslint/no-use-before-define
+  [lazy(() => BoxChildStruct)],
+) as unknown as Struct<SnapsChildren<GenericSnapElement>, null>;
+
 /**
  * A struct for the {@link BoxElement} type.
  */
 export const BoxStruct: Describe<BoxElement> = element('Box', {
-  children: maybeArray(
-    // eslint-disable-next-line @typescript-eslint/no-use-before-define
-    nullable(lazy(() => JSXElementStruct)),
-  ) as unknown as Struct<MaybeArray<GenericSnapElement | null>, null>,
+  children: BoxChildrenStruct,
+  direction: optional(nullUnion([literal('horizontal'), literal('vertical')])),
+  alignment: optional(
+    nullUnion([
+      literal('start'),
+      literal('center'),
+      literal('end'),
+      literal('space-between'),
+      literal('space-around'),
+    ]),
+  ),
 });
+
+/**
+ * A subset of JSX elements that are allowed as children of the Footer component.
+ * This set should include a single button or a tuple of two buttons.
+ */
+export const FooterChildStruct = nullUnion([
+  tuple([ButtonStruct, ButtonStruct]),
+  ButtonStruct,
+]);
+
+/**
+ * A struct for the {@link FooterElement} type.
+ */
+export const FooterStruct: Describe<FooterElement> = element('Footer', {
+  children: FooterChildStruct,
+});
+
+/**
+ * A subset of JSX elements that are allowed as children of the Container component.
+ * This set should include a single Box or a tuple of a Box and a Footer component.
+ */
+export const ContainerChildStruct = nullUnion([
+  tuple([BoxStruct, FooterStruct]),
+  BoxStruct,
+]);
+
+/**
+ * A struct for the {@link ContainerElement} type.
+ */
+export const ContainerStruct: Describe<ContainerElement> = element(
+  'Container',
+  {
+    children: ContainerChildStruct,
+  },
+);
 
 /**
  * A struct for the {@link CopyableElement} type.
@@ -212,6 +374,25 @@ export const CopyableStruct: Describe<CopyableElement> = element('Copyable', {
 export const DividerStruct: Describe<DividerElement> = element('Divider');
 
 /**
+ * A struct for the {@link ValueElement} type.
+ */
+export const ValueStruct: Describe<ValueElement> = element('Value', {
+  value: string(),
+  extra: string(),
+});
+
+/**
+ * A struct for the {@link CardElement} type.
+ */
+export const CardStruct: Describe<CardElement> = element('Card', {
+  image: optional(string()),
+  title: string(),
+  description: optional(string()),
+  value: string(),
+  extra: optional(string()),
+});
+
+/**
  * A struct for the {@link HeadingElement} type.
  */
 export const HeadingStruct: Describe<HeadingElement> = element('Heading', {
@@ -222,7 +403,7 @@ export const HeadingStruct: Describe<HeadingElement> = element('Heading', {
  * A struct for the {@link ImageElement} type.
  */
 export const ImageStruct: Describe<ImageElement> = element('Image', {
-  src: string(),
+  src: svg(),
   alt: optional(string()),
 });
 
@@ -231,16 +412,50 @@ export const ImageStruct: Describe<ImageElement> = element('Image', {
  */
 export const LinkStruct: Describe<LinkElement> = element('Link', {
   href: string(),
-  children: maybeArray(nullable(nullUnion([FormattingStruct, string()]))),
+  children: children([FormattingStruct, string()]),
 });
 
 /**
  * A struct for the {@link TextElement} type.
  */
 export const TextStruct: Describe<TextElement> = element('Text', {
-  children: maybeArray(
-    nullable(nullUnion([string(), BoldStruct, ItalicStruct, LinkStruct])),
+  children: children([string(), BoldStruct, ItalicStruct, LinkStruct]),
+  alignment: optional(
+    nullUnion([literal('start'), literal('center'), literal('end')]),
   ),
+});
+
+/**
+ * A subset of JSX elements that are allowed as children of the Tooltip component.
+ * This set should include all text components and the Image.
+ */
+export const TooltipChildStruct = nullUnion([
+  TextStruct,
+  BoldStruct,
+  ItalicStruct,
+  LinkStruct,
+  ImageStruct,
+  boolean(),
+]);
+
+/**
+ * A subset of JSX elements that are allowed as content of the Tooltip component.
+ * This set should include all text components.
+ */
+export const TooltipContentStruct = nullUnion([
+  TextStruct,
+  BoldStruct,
+  ItalicStruct,
+  LinkStruct,
+  string(),
+]);
+
+/**
+ * A struct for the {@link TooltipElement} type.
+ */
+export const TooltipStruct: Describe<TooltipElement> = element('Tooltip', {
+  children: nullable(TooltipChildStruct),
+  content: TooltipContentStruct,
 });
 
 /**
@@ -248,10 +463,11 @@ export const TextStruct: Describe<TextElement> = element('Text', {
  */
 export const RowStruct: Describe<RowElement> = element('Row', {
   label: string(),
-  children: nullUnion([AddressStruct, ImageStruct, TextStruct]),
+  children: nullUnion([AddressStruct, ImageStruct, TextStruct, ValueStruct]),
   variant: optional(
-    nullUnion([literal('default'), literal('warning'), literal('error')]),
+    nullUnion([literal('default'), literal('warning'), literal('critical')]),
   ),
+  tooltip: optional(string()),
 });
 
 /**
@@ -260,11 +476,49 @@ export const RowStruct: Describe<RowElement> = element('Row', {
 export const SpinnerStruct: Describe<SpinnerElement> = element('Spinner');
 
 /**
+ * A subset of JSX elements that are allowed as children of the Box component.
+ * This set includes all components, except components that need to be nested in
+ * another component (e.g., Field must be contained in a Form).
+ */
+export const BoxChildStruct = typedUnion([
+  AddressStruct,
+  BoldStruct,
+  BoxStruct,
+  ButtonStruct,
+  CopyableStruct,
+  DividerStruct,
+  DropdownStruct,
+  FileInputStruct,
+  FormStruct,
+  HeadingStruct,
+  InputStruct,
+  ImageStruct,
+  ItalicStruct,
+  LinkStruct,
+  RowStruct,
+  SpinnerStruct,
+  TextStruct,
+  TooltipStruct,
+  CheckboxStruct,
+  CardStruct,
+]);
+
+/**
+ * For now, the allowed JSX elements at the root are the same as the allowed
+ * children of the Box component.
+ */
+export const RootJSXElementStruct = nullUnion([
+  BoxChildStruct,
+  ContainerStruct,
+]);
+
+/**
  * A struct for the {@link JSXElement} type.
  */
-export const JSXElementStruct: Describe<JSXElement> = nullUnion([
+export const JSXElementStruct: Describe<JSXElement> = typedUnion([
   ButtonStruct,
   InputStruct,
+  FileInputStruct,
   FieldStruct,
   FormStruct,
   BoldStruct,
@@ -279,6 +533,14 @@ export const JSXElementStruct: Describe<JSXElement> = nullUnion([
   RowStruct,
   SpinnerStruct,
   TextStruct,
+  DropdownStruct,
+  OptionStruct,
+  ValueStruct,
+  TooltipStruct,
+  CheckboxStruct,
+  FooterStruct,
+  ContainerStruct,
+  CardStruct,
 ]);
 
 /**

@@ -1,19 +1,17 @@
-import type { MaybeArray } from '../../component';
+import type { GenericSnapElement, SnapsChildren } from '../../component';
 import { createSnapComponent } from '../../component';
-import type { ButtonElement } from './Button';
-import type { FieldElement } from './Field';
 
 // TODO: Add `onSubmit` prop to the `FormProps` type.
 
 /**
  * The props of the {@link Form} component.
  *
- * @property children - The form fields. See {@link Field}.
+ * @property children - The children of the form.
  * @property name - The name of the form. This is used to identify the form in
  * the event handler.
  */
-type FormProps = {
-  children: MaybeArray<FieldElement | ButtonElement>;
+export type FormProps = {
+  children: SnapsChildren<GenericSnapElement>;
   name: string;
 };
 

@@ -2,11 +2,14 @@ import type { Component } from '@metamask/snaps-sdk';
 import { NodeType } from '@metamask/snaps-sdk';
 import type {
   BoldChildren,
-  FieldElement,
+  GenericSnapElement,
   ItalicChildren,
   JSXElement,
-  MaybeArray,
+  LinkElement,
+  Nestable,
   RowChildren,
+  SnapNode,
+  StandardFormattingElement,
   TextChildren,
 } from '@metamask/snaps-sdk/jsx';
 import {
@@ -150,9 +153,12 @@ function getTextChildFromToken(token: Token): TextChildren {
  * @param value - The markdown string.
  * @returns The text children.
  */
-export function getTextChildren(value: string) {
+export function getTextChildren(
+  value: string,
+): (string | StandardFormattingElement | LinkElement)[] {
   const rootTokens = lexer(value, { gfm: false });
-  const children: TextChildren = [];
+  const children: (string | StandardFormattingElement | LinkElement | null)[] =
+    [];
 
   walkTokens(rootTokens, (token) => {
     if (token.type === 'paragraph') {
@@ -161,11 +167,24 @@ export function getTextChildren(value: string) {
       }
 
       const { tokens } = token as Tokens.Paragraph;
-      children.push(...tokens.flatMap(getTextChildFromToken));
+      // We do not need to consider nesting deeper than 1 level here and we can therefore cast.
+      children.push(
+        ...(tokens.flatMap(getTextChildFromToken) as (
+          | string
+          | StandardFormattingElement
+          | LinkElement
+          | null
+        )[]),
+      );
     }
   });
 
-  return children.filter((child) => child !== null);
+  // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion
+  return children.filter((child) => child !== null) as (
+    | string
+    | StandardFormattingElement
+    | LinkElement
+  )[];
 }
 
 /**
@@ -235,7 +254,7 @@ export function getJsxElementFromComponent(
       case NodeType.Form:
         return (
           <Form name={component.name}>
-            {getChildren(component.children.map(getElement)) as FieldElement[]}
+            {getChildren(component.children.map(getElement))}
           </Form>
         );
 
@@ -266,7 +285,7 @@ export function getJsxElementFromComponent(
 
       case NodeType.Row:
         return (
-          <Row label={component.label}>
+          <Row label={component.label} variant={component.variant}>
             {getElement(component.value) as RowChildren}
           </Row>
         );
@@ -416,9 +435,21 @@ export function getTotalTextLength(component: Component): number {
 export function hasChildren<Element extends JSXElement>(
   element: Element,
 ): element is Element & {
-  props: { children: MaybeArray<JSXElement | string> };
+  props: { children: Nestable<JSXElement | string> };
 } {
   return hasProperty(element.props, 'children');
+}
+
+/**
+ * Filter a JSX child to remove `null`, `undefined`, plain booleans, and empty
+ * strings.
+ *
+ * @param child - The JSX child to filter.
+ * @returns `true` if the child is not `null`, `undefined`, a plain boolean, or
+ * an empty string, `false` otherwise.
+ */
+function filterJsxChild(child: JSXElement | string | boolean | null): boolean {
+  return Boolean(child) && child !== true;
 }
 
 /**
@@ -433,7 +464,7 @@ export function getJsxChildren(element: JSXElement): (JSXElement | string)[] {
     if (Array.isArray(element.props.children)) {
       // @ts-expect-error - Each member of the union type has signatures, but
       // none of those signatures are compatible with each other.
-      return element.props.children.filter(Boolean);
+      return element.props.children.filter(filterJsxChild).flat(Infinity);
     }
 
     if (element.props.children) {
@@ -449,15 +480,17 @@ export function getJsxChildren(element: JSXElement): (JSXElement | string)[] {
  *
  * @param node - The JSX node to walk.
  * @param callback - The callback to call on each node.
+ * @param depth - The current depth in the JSX tree for a walk.
  * @returns The result of the callback, if any.
  */
 export function walkJsx<Value>(
   node: JSXElement | JSXElement[],
-  callback: (node: JSXElement) => Value | undefined,
+  callback: (node: JSXElement, depth: number) => Value | undefined,
+  depth = 0,
 ): Value | undefined {
   if (Array.isArray(node)) {
     for (const child of node) {
-      const childResult = walkJsx(child as JSXElement, callback);
+      const childResult = walkJsx(child as JSXElement, callback, depth);
       if (childResult !== undefined) {
         return childResult;
       }
@@ -466,7 +499,7 @@ export function walkJsx<Value>(
     return undefined;
   }
 
-  const result = callback(node);
+  const result = callback(node, depth);
   if (result !== undefined) {
     return result;
   }
@@ -479,7 +512,7 @@ export function walkJsx<Value>(
     const children = getJsxChildren(node);
     for (const child of children) {
       if (isPlainObject(child)) {
-        const childResult = walkJsx(child, callback);
+        const childResult = walkJsx(child, callback, depth + 1);
         if (childResult !== undefined) {
           return childResult;
         }
@@ -488,4 +521,67 @@ export function walkJsx<Value>(
   }
 
   return undefined;
+}
+
+/**
+ * Serialise a JSX prop to a string.
+ *
+ * @param prop - The JSX prop.
+ * @returns The serialised JSX prop.
+ */
+function serialiseProp(prop: unknown): string {
+  if (typeof prop === 'string') {
+    return `"${prop}"`;
+  }
+
+  return `{${JSON.stringify(prop)}}`;
+}
+
+/**
+ * Serialise JSX props to a string.
+ *
+ * @param props - The JSX props.
+ * @returns The serialised JSX props.
+ */
+function serialiseProps(props: Record<string, unknown>): string {
+  return Object.entries(props)
+    .filter(([key]) => key !== 'children')
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([key, value]) => ` ${key}=${serialiseProp(value)}`)
+    .join('');
+}
+
+/**
+ * Serialise a JSX node to a string.
+ *
+ * @param node - The JSX node.
+ * @param indentation - The indentation level. Defaults to `0`. This should not
+ * be set by the caller, as it is used for recursion.
+ * @returns The serialised JSX node.
+ */
+export function serialiseJsx(node: SnapNode, indentation = 0): string {
+  if (Array.isArray(node)) {
+    return node.map((child) => serialiseJsx(child, indentation)).join('');
+  }
+
+  const indent = '  '.repeat(indentation);
+  if (typeof node === 'string') {
+    return `${indent}${node}\n`;
+  }
+
+  if (!node) {
+    return '';
+  }
+
+  const { type, props } = node as GenericSnapElement;
+  const trailingNewline = indentation > 0 ? '\n' : '';
+
+  if (hasProperty(props, 'children')) {
+    const children = serialiseJsx(props.children as SnapNode, indentation + 1);
+    return `${indent}<${type}${serialiseProps(
+      props,
+    )}>\n${children}${indent}</${type}>${trailingNewline}`;
+  }
+
+  return `${indent}<${type}${serialiseProps(props)} />${trailingNewline}`;
 }

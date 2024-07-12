@@ -6,8 +6,10 @@ import {
   Bip32EntropyStruct,
   Bip32PathStruct,
   createSnapManifest,
+  CurveStruct,
   EmptyObjectStruct,
   isSnapManifest,
+  PermissionsStruct,
   SnapIdsStruct,
 } from './validation';
 
@@ -78,6 +80,19 @@ describe('Bip32PathStruct', () => {
       expect(() => assert(path.split('/'), Bip32PathStruct)).toThrow(
         `The path "${path}" is not allowed for entropy derivation.`,
       );
+    },
+  );
+});
+
+describe('CurveStruct', () => {
+  it.each(['secp256k1', 'ed25519', 'ed25519Bip32'])('validates %p', (curve) => {
+    expect(is(curve, CurveStruct)).toBe(true);
+  });
+
+  it.each([1, '', 'asd', {}, null, undefined])(
+    'does not validate %p',
+    (curve) => {
+      expect(is(curve, CurveStruct)).toBe(false);
     },
   );
 });
@@ -243,5 +258,11 @@ describe('createSnapManifest', () => {
     getSnapManifest({ version: 'foo bar' }),
   ])('throws for an invalid snap manifest', (value) => {
     expect(() => createSnapManifest(value)).toThrow(StructError);
+  });
+});
+
+describe('PermissionsStruct', () => {
+  it('disallows empty endowment:rpc', () => {
+    expect(is({ 'endowment:rpc': {} }, PermissionsStruct)).toBe(false);
   });
 });

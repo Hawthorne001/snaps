@@ -6,6 +6,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [8.2.0]
+### Added
+- Add support for `Checkbox` to `snaps-jest` ([#2515](https://github.com/MetaMask/snaps/pull/2515))
+  - Checkboxes can be interacted with using `clickElement`.
+- Add support for `FileInput` to `snaps-jest` ([#2494](https://github.com/MetaMask/snaps/pull/2494))
+  - Files can be uploaded to file inputs using `uploadFile`.
+
+## [8.1.3]
+### Changed
+- Bump MetaMask dependencies ([#2460](https://github.com/MetaMask/snaps/pull/2460), [#2477](https://github.com/MetaMask/snaps/pull/2477))
+
+## [8.1.2]
+### Fixed
+- Fix invalid `@metamask/snaps-sdk` imports ([#2452](https://github.com/MetaMask/snaps/pull/2452))
+
+## [8.1.1]
+### Changed
+- Bump `@metamask/key-tree` from `9.1.0` to `9.1.1` ([#2431](https://github.com/MetaMask/snaps/pull/2431))
+
+## [8.1.0]
+### Added
+- Add `selectInDropdown` to be used with the newly added `Dropdown` component ([#2420](https://github.com/MetaMask/snaps/pull/2420))
+- Add `context` field to `snap_createInterface` ([#2413](https://github.com/MetaMask/snaps/pull/2413))
+
+### Fixed
+- Properly handle invalid interfaces during test ([#2433](https://github.com/MetaMask/snaps/pull/2433))
+- Properly diff when using legacy UI with `toRender` matcher ([#2432](https://github.com/MetaMask/snaps/pull/2432))
+
 ## [8.0.0]
 ### Added
 - **BREAKING:** Add JSX support for custom UI ([#2258](https://github.com/MetaMask/snaps/pull/2258))
@@ -144,7 +172,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - The version of the package no longer needs to match the version of all other
     MetaMask Snaps packages.
 
-[Unreleased]: https://github.com/MetaMask/snaps/compare/@metamask/snaps-jest@8.0.0...HEAD
+[Unreleased]: https://github.com/MetaMask/snaps/compare/@metamask/snaps-jest@8.2.0...HEAD
+[8.2.0]: https://github.com/MetaMask/snaps/compare/@metamask/snaps-jest@8.1.3...@metamask/snaps-jest@8.2.0
+[8.1.3]: https://github.com/MetaMask/snaps/compare/@metamask/snaps-jest@8.1.2...@metamask/snaps-jest@8.1.3
+[8.1.2]: https://github.com/MetaMask/snaps/compare/@metamask/snaps-jest@8.1.1...@metamask/snaps-jest@8.1.2
+[8.1.1]: https://github.com/MetaMask/snaps/compare/@metamask/snaps-jest@8.1.0...@metamask/snaps-jest@8.1.1
+[8.1.0]: https://github.com/MetaMask/snaps/compare/@metamask/snaps-jest@8.0.0...@metamask/snaps-jest@8.1.0
 [8.0.0]: https://github.com/MetaMask/snaps/compare/@metamask/snaps-jest@7.0.2...@metamask/snaps-jest@8.0.0
 [7.0.2]: https://github.com/MetaMask/snaps/compare/@metamask/snaps-jest@7.0.1...@metamask/snaps-jest@7.0.2
 [7.0.1]: https://github.com/MetaMask/snaps/compare/@metamask/snaps-jest@7.0.0...@metamask/snaps-jest@7.0.1
